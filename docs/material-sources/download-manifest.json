@@ -1,0 +1,128 @@
+[
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks/wood_planks_diff_1k.jpg",
+    "md5": "922505c35c2d0dc6a44da7ac77757134",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\wood_planks_Diffuse.jpg",
+    "kind": "Diffuse",
+    "id": "wood_planks"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks/wood_planks_nor_gl_1k.jpg",
+    "md5": "98d2313130880f8ed7b87e843f6ba149",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\wood_planks_nor_gl.jpg",
+    "kind": "nor_gl",
+    "id": "wood_planks"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks/wood_planks_rough_1k.jpg",
+    "md5": "69c9313315808cc9d858a648c2335fec",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\wood_planks_Rough.jpg",
+    "kind": "Rough",
+    "id": "wood_planks"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coast_sand_01/coast_sand_01_diff_1k.jpg",
+    "md5": "a1e243fc8635806381505c7dc44b192a",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\coast_sand_01_Diffuse.jpg",
+    "kind": "Diffuse",
+    "id": "coast_sand_01"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coast_sand_01/coast_sand_01_nor_gl_1k.jpg",
+    "md5": "38bbe6863249a3d20d8417c9db207780",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\coast_sand_01_nor_gl.jpg",
+    "kind": "nor_gl",
+    "id": "coast_sand_01"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/coast_sand_01/coast_sand_01_rough_1k.jpg",
+    "md5": "978aca9e374cf988095392a91d3a4f71",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\coast_sand_01_Rough.jpg",
+    "kind": "Rough",
+    "id": "coast_sand_01"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_diff_1k.jpg",
+    "md5": "6ad9df4d731a238299806f739a26af83",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\forest_ground_04_Diffuse.jpg",
+    "kind": "Diffuse",
+    "id": "forest_ground_04"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_nor_gl_1k.jpg",
+    "md5": "a010a0802c2d9a930c6f00d3b1f196d2",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\forest_ground_04_nor_gl.jpg",
+    "kind": "nor_gl",
+    "id": "forest_ground_04"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_rough_1k.jpg",
+    "md5": "b5c7ba5c16f00261e9a765d52cf7e0ac",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\forest_ground_04_Rough.jpg",
+    "kind": "Rough",
+    "id": "forest_ground_04"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rusty_metal_02/rusty_metal_02_diff_1k.jpg",
+    "md5": "476bff9959bc727bd4b83c0a9ac4aeaa",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\rusty_metal_02_Diffuse.jpg",
+    "kind": "Diffuse",
+    "id": "rusty_metal_02"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rusty_metal_02/rusty_metal_02_nor_gl_1k.jpg",
+    "md5": "8d6dc7e26f2708ec59e2a739711c612b",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\rusty_metal_02_nor_gl.jpg",
+    "kind": "nor_gl",
+    "id": "rusty_metal_02"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rusty_metal_02/rusty_metal_02_rough_1k.jpg",
+    "md5": "75551ad404e29489f9b75876da95a13a",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\rusty_metal_02_Rough.jpg",
+    "kind": "Rough",
+    "id": "rusty_metal_02"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_diff_1k.jpg",
+    "md5": "e4c34abb1aad5befe12754fad507147a",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\rock_face_03_Diffuse.jpg",
+    "kind": "Diffuse",
+    "id": "rock_face_03"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_nor_gl_1k.jpg",
+    "md5": "cbd30858439ece391480c5e67e09de89",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\rock_face_03_nor_gl.jpg",
+    "kind": "nor_gl",
+    "id": "rock_face_03"
+  },
+  {
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_rough_1k.jpg",
+    "md5": "bbb2c7dafde3f81808fa7404d4527a56",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\rock_face_03_Rough.jpg",
+    "kind": "Rough",
+    "id": "rock_face_03"
+  },
+  {
+    "id": "concrete_wall_004",
+    "kind": "Diffuse",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\concrete_wall_004_Diffuse.jpg",
+    "md5": "49abd471d18a8526908d8ac9176278d8",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_diff_1k.jpg"
+  },
+  {
+    "id": "concrete_wall_004",
+    "kind": "nor_gl",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\concrete_wall_004_nor_gl.jpg",
+    "md5": "aabe52218b302ea0a12990da25ed60ed",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_nor_gl_1k.jpg"
+  },
+  {
+    "id": "concrete_wall_004",
+    "kind": "Rough",
+    "path": "D:\\study\\9.project\\3D\\codex\\game\\assets\\materials\\concrete_wall_004_Rough.jpg",
+    "md5": "261d0c0023bfb1a930ff3c0f0df4a941",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_004/concrete_wall_004_rough_1k.jpg"
+  }
+]

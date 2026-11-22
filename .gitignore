@@ -1,0 +1,33 @@
+# Godot generates these locally.
+.godot/
+game/.godot/
+
+# Distributables belong in GitHub Releases, not source history.
+/build/
+/release/
+/BeyondTheMistline-*-Windows/
+/BeyondTheMistline-*-Windows.zip
+/videos/
+*.exe
+*.pck
+*.tmp
+*.TMP
+
+# Keep reproducible scripts, exclude installed engines and isolated QA profiles.
+/tools/*
+!/tools/*.ps1
+
+# Local settings, credentials, editor state, and saves.
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+.agents/
+.vscode/
+.idea/
+*.log
+*.bak
+settings.cfg
+mistline.json*
+/docs/CLEANUP_LOG.json

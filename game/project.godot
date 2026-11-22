@@ -1,0 +1,17 @@
+config_version=5
+
+[application]
+config/name="雾线之外 Beyond the Mistline"
+run/main_scene="res://main.tscn"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.2,0.3,0.34,1)
+
+[physics]
+common/physics_ticks_per_second=60
