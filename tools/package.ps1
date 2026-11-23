@@ -1,14 +1,24 @@
-param([ValidatePattern('^\d+\.\d+$')][string]$Version='0.17')
+param([ValidatePattern('^\d+\.\d+$')][string]$Version='0.21',[string]$SourceDirectory)
 $ErrorActionPreference='Stop'
 $taskRoot=(Resolve-Path -LiteralPath (Split-Path $PSScriptRoot -Parent)).Path
+if (!$SourceDirectory) { $SourceDirectory=Join-Path $taskRoot 'build' }
 $package=Join-Path $taskRoot "BeyondTheMistline-$Version-Windows"
 $zipPath=$package+'.zip'
 New-Item -ItemType Directory -Force -Path $package | Out-Null
 foreach ($name in @('BeyondTheMistline.exe','BeyondTheMistline.pck')) {
- Copy-Item -LiteralPath (Join-Path $taskRoot ('build/'+$name)) -Destination $package -Force
+ Copy-Item -LiteralPath (Join-Path $SourceDirectory $name) -Destination $package -Force
 }
 foreach ($name in @('README.md','ASSET_CREDITS.md')) { Copy-Item -LiteralPath (Join-Path $taskRoot $name) -Destination $package -Force }
-foreach ($name in @('KNOWN_ISSUES.md','TEST_REPORT.md','MAINLINE_VALIDATION.md','GAMEPLAY_VIDEO.md','PERFORMANCE.md','AI_PERCEPTION.md')) {
+Copy-Item -LiteralPath (Join-Path $taskRoot 'game/assets/fonts/OFL.txt') -Destination (Join-Path $package 'FONT_LICENSE.txt') -Force
+Copy-Item -LiteralPath (Join-Path $taskRoot 'game/assets/characters/UAL_License.txt') -Destination (Join-Path $package 'ANIMATION_LICENSE.txt') -Force
+Copy-Item -LiteralPath (Join-Path $taskRoot 'game/assets/characters/base/License_Standard.txt') -Destination (Join-Path $package 'CHARACTER_LICENSE.txt') -Force
+Copy-Item -LiteralPath (Join-Path $taskRoot 'docs/SIMPLIFIED_EDITION.md') -Destination $package -Force
+Copy-Item -LiteralPath (Join-Path $taskRoot 'docs/character-sources.json') -Destination $package -Force
+Copy-Item -LiteralPath (Join-Path $taskRoot 'docs/BUILDING.md') -Destination $package -Force
+$readmePath=Join-Path $package 'README.md'
+$readme=(Get-Content -LiteralPath $readmePath -Raw).Replace('(docs/BUILDING.md)','(BUILDING.md)').Replace('(docs/KNOWN_ISSUES.md)','(KNOWN_ISSUES.md)')
+Set-Content -LiteralPath $readmePath -Value $readme -Encoding utf8
+foreach ($name in @('KNOWN_ISSUES.md','TEST_REPORT.md','MAINLINE_VALIDATION.md','GAMEPLAY_VIDEO.md','PERFORMANCE.md','AI_PERCEPTION.md','LOCAL_V018.md','LOCAL_V019.md','LOCAL_V020.md')) {
  Copy-Item -LiteralPath (Join-Path $taskRoot ('docs/'+$name)) -Destination $package -Force
 }
 Compress-Archive -LiteralPath $package -DestinationPath $zipPath -Force

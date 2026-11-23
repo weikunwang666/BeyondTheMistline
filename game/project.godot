@@ -2,6 +2,7 @@ config_version=5
 
 [application]
 config/name="雾线之外 Beyond the Mistline"
+config/version="0.21"
 run/main_scene="res://main.tscn"
 
 [display]

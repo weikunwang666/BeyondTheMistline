@@ -1,7 +1,10 @@
 param([switch]$RecordVideo)
 $ErrorActionPreference='Stop'
 $taskRoot=Split-Path $PSScriptRoot -Parent
-$env:APPDATA=Join-Path $PSScriptRoot $(if ($RecordVideo) { 'mainline-video-qa' } else { 'mainline-qa' })
+$runId=[guid]::NewGuid().ToString('N').Substring(0,8)
+$env:APPDATA=Join-Path $PSScriptRoot ('mainline-qa-runs/'+$runId)
+New-Item -ItemType Directory -Force $env:APPDATA | Out-Null
+Set-Content (Join-Path $taskRoot 'build/mainline-profile.txt') $env:APPDATA
 $env:MISTLINE_QA_DIR=Join-Path $taskRoot 'build'
 $logPath=Join-Path $taskRoot $(if ($RecordVideo) { 'build/mainline-record.log' } else { 'build/mainline-release.log' })
 $argsList=@('--log-file',$logPath)
@@ -24,3 +27,9 @@ while (-not $process.WaitForExit(10000)) {
 $log=Get-Content -LiteralPath $logPath -Raw
 if ($process.ExitCode -ne 0 -or $log -match 'ERROR|FAILED' -or $log -notmatch 'MAINLINE_OK') { throw "Mainline journey failed: $log" }
 Write-Output $log
+$readLog=Join-Path $taskRoot 'build/mainline-restart.log'
+$reader=Start-Process -FilePath (Join-Path $taskRoot 'build/BeyondTheMistline.exe') -ArgumentList @('--log-file',$readLog,'--','--mainline-read') -PassThru -WindowStyle Hidden
+if (!$reader.WaitForExit(60000)) { $reader.Kill(); throw 'Mainline restart exceeded sixty seconds' }
+$readText=Get-Content $readLog -Raw
+if ($reader.ExitCode -ne 0 -or $readText -match 'ERROR|FAILED' -or $readText -notmatch 'MAINLINE_RESTART_OK') { throw $readText }
+Write-Output $readText

@@ -5,6 +5,9 @@ var save_store=preload("res://save_store.gd").new()
 const Bag = preload("res://bag.gd")
 const BagSlot = preload("res://bag_slot.gd")
 var bag = Bag.new()
+var catalog=preload("res://item_catalog.gd").new()
+var gear=preload("res://gear_state.gd").new()
+var outfit_visual: Node3D
 var quickbar = ["野果","净水","绷带","罐头","烤肉","石斧","木矛","弓"]
 var equipped = ""
 var durability = {}
@@ -38,6 +41,12 @@ var sky_update_clock=0.0
 var soundscape
 var invert_y=false
 var shadows_enabled=true
+var quality_preset=1
+var antialiasing=0
+var camera_shake_enabled=true
+var subtitles_enabled=true
+var caption_label: Label
+var caption_left=0.0
 var selected_resolution=0
 var saved_fullscreen=false
 var survival=preload("res://survival_state.gd").new()
@@ -54,6 +63,7 @@ var senses=preload("res://enemy_senses.gd").new()
 var noise_position=Vector3.ZERO
 var noise_time=0.0
 var mouse_look_guard=0.0
+var world_tweens=[]
 var hit_reaction=0.0
 var landing_reaction=0.0
 var death_time=0.0
@@ -69,6 +79,7 @@ var yaw = 0.0
 var pitch = -0.24
 var clock = 8.0
 var weather = 0
+var climate=preload("res://weather_state.gd").new()
 var weather_time = 0.0
 var health = 100.0
 var hunger = 100.0
@@ -82,6 +93,7 @@ var repairs = []
 var discovered = []
 var entities = []
 var enemies = []
+var survivors=[]
 var target = {}
 var playing = false
 var panel_open = false
@@ -96,6 +108,7 @@ var sun: DirectionalLight3D
 var environment: Environment
 var sea: MeshInstance3D
 var hud: Label
+var survival_hud: Control
 var prompt: Label
 var notices: Label
 var panel: PanelContainer
@@ -112,14 +125,17 @@ var smoke = false
 var frame_count = 0
 var stats_label: Label
 var materials = {}
+var ui_font: FontVariation
+var source_font: FontFile
 var dropped_loot = []
 var rain: CPUParticles3D
 var ambience_phase = 0.0
 var gallery = false
 var qa_dir = ""
 
-const ITEMS = {"急救箱":0.7,"河水":0.5,"木材":0.8,"石头":1.0,"纤维":0.1,"野果":0.1,"金属":0.5,"布料":0.1,"零件":0.3,"生肉":0.4,"烤肉":0.3,"净水":0.5,"罐头":0.4,"绷带":0.1,"石斧":1.5,"木矛":1.5,"火把":0.5,"弓":1.0,"箭":0.05,"滤芯":0.2,"绳索":0.2,"工具包":1.0,"电池":0.4,"研究数据":0.1}
+const ITEMS = {"防雨外套":1.2,"加固背心":2.5,"急救箱":0.7,"河水":0.5,"木材":0.8,"石头":1.0,"纤维":0.1,"野果":0.1,"金属":0.5,"布料":0.1,"零件":0.3,"生肉":0.4,"烤肉":0.3,"净水":0.5,"罐头":0.4,"绷带":0.1,"石斧":1.5,"木矛":1.5,"火把":0.5,"弓":1.0,"箭":0.05,"滤芯":0.2,"绳索":0.2,"工具包":1.0,"电池":0.4,"研究数据":0.1}
 const RECIPES = {
+ "防雨外套":{"布料":6,"纤维":4,"绳索":1},"加固背心":{"布料":4,"金属":6,"绳索":2},
  "石斧":{"木材":3,"石头":3},"木矛":{"木材":4,"纤维":2},"绷带":{"布料":2},"火把":{"木材":2,"纤维":2},
  "绳索":{"纤维":3},"箭":{"木材":1,"石头":1},"弓":{"木材":5,"绳索":2},"滤芯":{"纤维":5,"石头":2},
  "净水":{"滤芯":1,"河水":1},"烤肉":{"生肉":1,"木材":1},"工具包":{"金属":4,"木材":2},"电池":{"金属":3,"零件":2}}
@@ -133,6 +149,11 @@ const POIS = [
 
 func _ready():
  rng.seed = 2049
+ source_font=load("res://assets/fonts/NotoSansSC.ttf")
+ source_font.allow_system_fallback=false
+ ui_font=FontVariation.new(); ui_font.base_font=source_font
+ ui_font.variation_opentype={TextServerManager.get_primary_interface().name_to_tag("wght"):500.0}
+ ThemeDB.fallback_font=ui_font
  load_settings()
  smoke = "--smoke" in OS.get_cmdline_user_args()
  gallery = "--gallery" in OS.get_cmdline_user_args()
@@ -142,14 +163,61 @@ func _ready():
  qa_dir=OS.get_environment("MISTLINE_QA_DIR")
  make_world()
  make_player()
+ apply_video_flags()
  make_ui()
  make_audio()
  menu()
+ if "--compact-test" in OS.get_cmdline_user_args():
+  var test=preload("res://compact_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
+  return
  if "--mainline-read" in OS.get_cmdline_user_args():
   load_game()
   var okay=playing and repairs.size()==3 and inv.get("研究数据",0)==1 and structures.size()>=2 and skill_xp.get("制作",0)>=100
   if okay: print("MAINLINE_RESTART_OK actual_completed_chapter"); get_tree().quit()
   else: push_error("MAINLINE_RESTART_FAILED"); get_tree().quit(1)
+  return
+ if "--rig-review" in OS.get_cmdline_user_args() or "--rig-body-review" in OS.get_cmdline_user_args() or "--base-rig-review" in OS.get_cmdline_user_args():
+  var review=preload("res://rig_review.gd").new(); review.game=self; add_child(review); review.call_deferred("run")
+  return
+ if "--creature-gallery" in OS.get_cmdline_user_args():
+  var preview=preload("res://creature_gallery.gd").new(); preview.game=self; add_child(preview); preview.call_deferred("run")
+  return
+ if "--tide-edge-test" in OS.get_cmdline_user_args():
+  var test=preload("res://tide_journey_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run_edge")
+  return
+ if "--tide-journey-read" in OS.get_cmdline_user_args():
+  load_game()
+  var okay=playing and "tidal-cargo" in removed and inv.get("电池",0)>=1 and inv.get("零件",0)>=5 and player.position.distance_to(ground(Vector2(-108,-96)))<5
+  if okay: print("TIDE_JOURNEY_RESTART_OK cargo inventory shore_position"); get_tree().quit()
+  else: push_error("TIDE_JOURNEY_RESTART_FAILED"); get_tree().quit(1)
+  return
+ if "--tide-journey-test" in OS.get_cmdline_user_args():
+  var test=preload("res://tide_journey_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
+  return
+ if "--nav-test" in OS.get_cmdline_user_args():
+  var test=preload("res://navigation_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
+  return
+ if "--world-pause-test" in OS.get_cmdline_user_args():
+  var test=preload("res://world_pause_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
+  return
+ if "--npc-read" in OS.get_cmdline_user_args():
+  load_game()
+  for i in range(3): await get_tree().physics_frame
+  if playing and survivors[0].schedule_id==3 and survivors[0].position.distance_to(ground(Vector2(-25,20)))<1.2:
+   print("NPC_RESTART_OK position night_schedule"); get_tree().quit()
+  else: push_error("NPC_RESTART_FAILED"); get_tree().quit(1)
+  return
+ if "--npc-test" in OS.get_cmdline_user_args():
+  var test=preload("res://npc_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
+  return
+ if "--gear-read" in OS.get_cmdline_user_args():
+  load_game()
+  if playing and gear.worn=="加固背心" and is_equal_approx(gear.damage_multiplier(),0.75) and is_instance_valid(outfit_visual):
+   print("GEAR_RESTART_OK outfit inventory visual protection"); get_tree().quit()
+  else: push_error("GEAR_RESTART_FAILED"); get_tree().quit(1)
+  return
+ if "--gear-test" in OS.get_cmdline_user_args():
+  var test=preload("res://gear_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
   return
  if "--mainline-test" in OS.get_cmdline_user_args():
   var test=preload("res://mainline_test.gd").new(); test.game=self; add_child(test); test.call_deferred("run")
@@ -183,11 +251,26 @@ func _ready():
   else: push_error("JOURNEY_RESTART_FAILED"); get_tree().quit(1)
   return
  if "--settings-write" in OS.get_cmdline_user_args():
+  start_new()
+  apply_quality(2)
+  assert(sun.shadow_enabled and get_viewport().msaa_3d==Viewport.MSAA_4X)
+  apply_quality(0)
+  assert(not sun.shadow_enabled and get_viewport().msaa_3d==Viewport.MSAA_DISABLED and camera.far==380)
+  hit_reaction=0.45; camera_shake_enabled=false; update_camera(1)
+  var steady=camera.position
+  camera_shake_enabled=true; update_camera(1)
+  assert(camera.position.distance_to(steady)>0.0001)
+  subtitles_enabled=false; show_caption("字幕开关测试")
+  assert(not caption_label.visible)
+  subtitles_enabled=true; update_captions(0)
+  assert(caption_label.visible)
+  camera_shake_enabled=false; subtitles_enabled=false
   volume=0.27; sensitivity=0.006; fov=83; invert_y=true; shadows_enabled=false; selected_resolution=1; saved_fullscreen=false
   save_settings(); print("SETTINGS_WRITE_OK"); get_tree().quit(); return
  if "--settings-read" in OS.get_cmdline_user_args():
   var valid=is_equal_approx(volume,0.27) and is_equal_approx(sensitivity,0.006) and fov==83 and invert_y and not shadows_enabled and selected_resolution==1 and not saved_fullscreen
   valid=valid and not sun.shadow_enabled and DisplayServer.window_get_size()==RESOLUTIONS[1]
+  valid=valid and quality_preset==0 and get_viewport().msaa_3d==Viewport.MSAA_DISABLED and not camera_shake_enabled and not subtitles_enabled and camera.far==380
   if valid: print("SETTINGS_READ_OK"); get_tree().quit()
   else: push_error("SETTINGS_READ_FAILED"); get_tree().quit(1)
   return
@@ -357,7 +440,7 @@ func make_world():
  sea = mesh(self,plane,Vector3(-510,0,0),Color("426d78"))
  var water = ShaderMaterial.new()
  var shader = Shader.new()
- shader.code = "shader_type spatial; uniform vec4 water_color:source_color=vec4(0.14,0.32,0.38,1.0); varying float wave; void vertex(){wave=sin(VERTEX.x*0.14+TIME)*0.16+sin(VERTEX.z*0.21+TIME*1.3)*0.12;VERTEX.y+=wave;} void fragment(){ALBEDO=water_color.rgb+vec3(sin(UV.x*1400.0+TIME+sin(UV.y*600.0))*0.025);ROUGHNESS=0.65;METALLIC=0.0;SPECULAR=0.18;}"
+ shader.code = "shader_type spatial; uniform float wave_strength=1.0; uniform vec4 water_color:source_color=vec4(0.14,0.32,0.38,1.0); varying float wave; void vertex(){wave=sin(VERTEX.x*0.14+TIME)*0.16+sin(VERTEX.z*0.21+TIME*1.3)*0.12;VERTEX.y+=wave*wave_strength;} void fragment(){ALBEDO=water_color.rgb+vec3(sin(UV.x*1400.0+TIME+sin(UV.y*600.0))*0.025);ROUGHNESS=0.65;METALLIC=0.0;SPECULAR=0.18;}"
  water.shader = shader
  sea.material_override = water
  foliage_material=EnvironmentArt.foliage_material()
@@ -383,7 +466,9 @@ func make_world():
  for poi in POIS: make_poi(poi)
  make_details()
  make_wetland()
- for i in range(14): make_enemy(Vector2(rng.randf_range(-20,130),rng.randf_range(-125,100)),i%2)
+ # Authored encounters leave room to learn crafting before entering danger.
+ for spawn in [[Vector2(50,58),0],[Vector2(18,100),0],[Vector2(138,0),0],[Vector2(138,-70),0],[Vector2(0,-90),1],[Vector2(78,-160),1],[Vector2(-12,-118),0],[Vector2(150,75),1]]:
+  make_enemy(spawn[0],spawn[1])
  # Nearby wreck salvage makes initial progression independent of random spawns.
  for i in range(6): loot(ground(Vector2(-62+i*2,58)),"漂流物资",{"木材":3,"石头":2,"纤维":2},"start"+str(i))
 
@@ -430,6 +515,9 @@ func make_details():
  var streak = BoxMesh.new()
  streak.size=Vector3(0.018,0.55,0.018)
  streak.material=material(Color("adc6cb"))
+ streak.material=streak.material.duplicate()
+ streak.material.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA
+ streak.material.vertex_color_use_as_albedo=true
  rain.mesh=streak
  rain.emitting=false
  add_child(rain)
@@ -437,12 +525,16 @@ func make_details():
 func make_wetland():
  var marsh_rng=RandomNumberGenerator.new(); marsh_rng.seed=721
  var reeds=MultiMesh.new(); reeds.transform_format=MultiMesh.TRANSFORM_3D
- reeds.mesh=EnvironmentArt.grass(); reeds.mesh.surface_set_material(0,foliage_material)
+ reeds.mesh=EnvironmentArt.reeds(); reeds.mesh.surface_set_material(0,foliage_material)
  reeds.instance_count=850
  for i in range(850):
   var angle=marsh_rng.randf()*TAU; var radius=sqrt(marsh_rng.randf())*29
   var p=Vector2(-48,-80)+Vector2(cos(angle),sin(angle))*radius
-  reeds.set_instance_transform(i,Transform3D(Basis(Vector3.UP,angle).scaled(Vector3(1.2,marsh_rng.randf_range(1.5,3.0),1.2)),ground(p)))
+  var a=Vector2(-63,-60); var b=Vector2(-28,-93)
+  var t=clamp((p-a).dot(b-a)/(b-a).length_squared(),0,1)
+  var clear=p.distance_to(a+(b-a)*t)<2.2 or sin(p.x*0.22)*cos(p.y*0.19)< -0.35
+  var scale=Vector3.ONE*0.01 if clear else Vector3(0.8,marsh_rng.randf_range(0.7,1.15),0.8)
+  reeds.set_instance_transform(i,Transform3D(Basis(Vector3.UP,angle).scaled(scale),ground(p)))
  var field=MultiMeshInstance3D.new(); field.multimesh=reeds; add_child(field)
  var start=Vector3(-63,1.35,-60); var finish=Vector3(-28,1.35,-93)
  for i in range(34):
@@ -500,7 +592,7 @@ func tree(pos: Vector3,s: float,i: int):
  register(n,"灰松","砍伐",{"木材":6,"纤维":1},"tree"+str(i))
 
 func register(n: Node3D,title: String,action: String,gives: Dictionary,id: String,kind = "resource"):
- entities.append({"node":n,"title":title,"action":action,"gives":gives,"id":id,"kind":kind})
+ entities.append({"node":n,"title":title,"action":action,"gives":gives,"id":id,"kind":kind,"initial_rotation":n.rotation})
 
 func loot(pos: Vector3,title: String,gives: Dictionary,id: String):
  var n = Node3D.new()
@@ -556,7 +648,9 @@ func make_poi(poi: Array):
   box(n,Vector3(-2,0.8,-3),Vector3(3,1.5,1.2),Color("68604e"),true)
   if kind == "factory":
    for x in [12,17]: cylinder(n,Vector3(x,4,-2),2,8,Color("92958b")).create_trimesh_collision()
+ preload("res://landmark_art.gd").new().build(self,n,kind)
  var label = Label3D.new()
+ label.font=ui_font
  label.text = poi[0]
  label.font_size = 40
  label.pixel_size = 0.012
@@ -592,28 +686,62 @@ func make_poi(poi: Array):
   cylinder(radio,Vector3(0.35,1.5,0),0.018,1.5,Color("92958b"))
   register(radio,"营地电台","维修",{},"camp-radio","side-radio")
  if kind == "village":
-  var npc = actor(n,Vector3(4,0,7),Color("a78c5d"))
+  var npc=preload("res://survivor.gd").new()
+  npc.game=self; npc.home=ground(Vector2(-26,19)); npc.position=npc.home
+  add_child(npc)
+  var shape=CollisionShape3D.new(); var capsule=CapsuleShape3D.new()
+  capsule.radius=0.34; capsule.height=1.85; shape.shape=capsule; shape.position.y=0.95
+  npc.add_child(shape); npc.visual=actor(npc,Vector3.ZERO,Color("a78c5d"))
+  survivors.append(npc)
   register(npc,"守岸人 伊莱","交谈",{},"npc","npc")
+  var canopy=box(self,npc.home+Vector3(0,3,0),Vector3(6,0.18,5),Color("7b8978"),true)
+  canopy.set_meta("shelter",true)
+  for side in [-1,1]: cylinder(self,npc.home+Vector3(side*2.7,1.5,1.8),0.07,3,Color("7b6950")).create_trimesh_collision()
 
 func actor(parent: Node3D,pos: Vector3,color: Color) -> Node3D:
+ if not "--legacy-actors" in OS.get_cmdline_user_args():
+  var survivor=preload("res://rigged_base.gd").new()
+  survivor.coat_color=color; parent.add_child(survivor); survivor.position=pos
+  if survivor.build(self):
+   survivor.gameplay=true; survivor.play_action("Idle")
+   if parent==player:
+    for i in range(4):
+     var proxy=Node3D.new(); survivor.add_child(proxy); limbs.append(proxy)
+   return survivor
+  parent.remove_child(survivor); survivor.queue_free()
+  push_warning("Character rig unavailable; using procedural fallback.")
  var n = Node3D.new()
  parent.add_child(n)
  n.position = pos
- sphere(n,Vector3(0,1.75,0),Vector3(0.4,0.5,0.4),Color("b5a38b"))
- sphere(n,Vector3(0,1.15,0),Vector3(0.73,1.0,0.5),color)
- cylinder(n,Vector3(0,2.01,0),0.25,0.14,Color("595c4b"))
- box(n,Vector3(0,1.53,-0.18),Vector3(0.26,0.12,0.12),Color("4a5a5b"))
- box(n,Vector3(0,1.1,0.3),Vector3(0.5,0.6,0.24),Color("615d46"))
+ var anatomy=preload("res://creature_visuals.gd").new()
+ var skin=Color("b5a38b"); var trousers=Color("3e5053")
+ anatomy.ellipsoid(self,n,Vector3(0,1.67,0),Vector3(0.32,0.39,0.33),skin)
+ cylinder(n,Vector3(0,1.46,0),0.075,0.13,skin)
+ anatomy.ellipsoid(self,n,Vector3(0,1.17,0),Vector3(0.57,0.64,0.38),color)
+ anatomy.ellipsoid(self,n,Vector3(0,0.9,0),Vector3(0.45,0.3,0.34),trousers)
+ cylinder(n,Vector3(0,1.86,0),0.18,0.1,Color("505f55"))
+ box(n,Vector3(0,1.82,-0.19),Vector3(0.34,0.025,0.19),Color("505f55"))
+ box(n,Vector3(0,1.65,-0.18),Vector3(0.06,0.08,0.06),skin)
+ box(n,Vector3(0,1.16,-0.19),Vector3(0.015,0.48,0.015),Color("4a5754"))
+ box(n,Vector3(0,1.15,0.27),Vector3(0.42,0.48,0.2),Color("5c6552"))
  for side in [-1,1]:
-  var leg=Node3D.new(); leg.position=Vector3(side*0.18,0.85,0); n.add_child(leg)
-  var leg_mesh=CapsuleMesh.new(); leg_mesh.radius=0.12; leg_mesh.height=0.72
-  mesh(leg,leg_mesh,Vector3(0,-0.35,0),Color("35494e"))
-  sphere(leg,Vector3(0,-0.72,-0.06),Vector3(0.29,0.18,0.45),Color("323a36"))
-  var arm=Node3D.new(); arm.position=Vector3(side*0.41,1.45,0); n.add_child(arm)
-  var sleeve=CapsuleMesh.new(); sleeve.radius=0.115; sleeve.height=0.56
-  mesh(arm,sleeve,Vector3(0,-0.25,0),color)
-  sphere(arm,Vector3(0,-0.57,0),Vector3(0.2,0.23,0.22),Color("554f40"))
+  anatomy.ellipsoid(self,n,Vector3(side*0.16,1.67,0),Vector3(0.075,0.11,0.07),skin)
+  anatomy.ellipsoid(self,n,Vector3(side*0.07,1.71,-0.15),Vector3(0.035,0.022,0.025),Color("35423c"))
+  box(n,Vector3(side*0.14,1.21,-0.18),Vector3(0.14,0.14,0.025),color.darkened(0.12))
+ for side in [-1,1]:
+  var leg=Node3D.new(); leg.position=Vector3(side*0.14,0.85,0); n.add_child(leg)
+  leg.set_meta("walk_phase",0.0 if side<0 else PI)
+  anatomy.link(self,leg,Vector3.ZERO,Vector3(0,-0.34,0.02),0.105,trousers)
+  anatomy.link(self,leg,Vector3(0,-0.34,0.02),Vector3(0,-0.68,0),0.08,trousers)
+  sphere(leg,Vector3(0,-0.72,-0.06),Vector3(0.23,0.18,0.35),Color("323a36"))
+  var arm=Node3D.new(); arm.position=Vector3(side*0.31,1.43,0); n.add_child(arm)
+  arm.set_meta("walk_phase",PI if side<0 else 0.0)
+  anatomy.link(self,arm,Vector3.ZERO,Vector3(0,-0.27,-0.025),0.095,color)
+  anatomy.link(self,arm,Vector3(0,-0.27,-0.025),Vector3(0,-0.51,-0.045),0.075,color.darkened(0.06))
+  sphere(arm,Vector3(0,-0.56,-0.045),Vector3(0.14,0.18,0.16),Color("554f40"))
+  anatomy.merge_meshes(leg); anatomy.merge_meshes(arm)
   if parent == player: limbs.append(leg); limbs.append(arm)
+ anatomy.merge_meshes(n)
  return n
 
 func make_player():
@@ -626,7 +754,7 @@ func make_player():
  collider.shape = shape
  collider.position.y = 0.95
  player.add_child(collider)
- body = actor(player,Vector3.ZERO,Color("bd9869"))
+ body = actor(player,Vector3.ZERO,Color("617579"))
  camera = Camera3D.new()
  camera.far = 650
  add_child(camera)
@@ -642,26 +770,9 @@ func make_enemy(p: Vector2,kind: int):
  c.shape = s
  c.position.y = 0.65
  n.add_child(c)
- var color = Color("7f8981") if kind == 0 else Color("9a6247")
- sphere(n,Vector3(0,0.8,0),Vector3(1.4,0.8,0.8) if kind == 0 else Vector3(1.8,0.65,1.3),color)
- sphere(n,Vector3(0,1,-0.65),Vector3(0.65,0.6,0.7),color)
- for side in [-1,1]:
-  for z in [-0.5,0.5]:
-   var leg = box(n,Vector3(side*0.65,0.35,z),Vector3(0.18,0.65,0.2),color)
-   leg.rotation.z = side*0.4
-   leg.set_meta("phase",side+z)
- if kind==0:
-  for side in [-1,1]: cylinder(n,Vector3(side*0.22,1.4,-0.6),0.16,0.45,color,0)
-  var tail=cylinder(n,Vector3(0,0.9,0.9),0.12,0.9,color,0.04); tail.rotation.x=0.8
- else:
-  for side in [-1,1]:
-   for z in [-0.2,0.2]:
-    var leg=box(n,Vector3(side*1.05,0.3,z),Vector3(0.85,0.13,0.14),color); leg.rotation.z=side*0.3; leg.set_meta("phase",side+z)
-   sphere(n,Vector3(side*0.9,0.8,-0.9),Vector3(0.6,0.4,0.7),color)
- var parts=[]
- for part in n.get_children():
-  if part is MeshInstance3D: parts.append({"node":part,"position":part.position,"rotation":part.rotation})
+ var parts=preload("res://creature_visuals.gd").new().build(self,n,kind)
  var indicator=Label3D.new(); indicator.name="Indicator"; indicator.position=Vector3(0,1.9,0)
+ indicator.font=ui_font
  indicator.billboard=BaseMaterial3D.BILLBOARD_ENABLED; indicator.font_size=30; indicator.pixel_size=0.008
  indicator.modulate=Color("e9c4a6"); n.add_child(indicator)
  enemies.append({"node":n,"home":n.position,"hp":60.0 if kind == 0 else 100.0,"kind":kind,"state":"Patrol","timer":0.0,"cooldown":0.0,"parts":parts})
@@ -670,6 +781,7 @@ func make_ui():
  var canvas = CanvasLayer.new()
  add_child(canvas)
  var theme = Theme.new()
+ theme.default_font=ui_font
  theme.default_font_size = 18
  var root = Control.new()
  root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -679,6 +791,9 @@ func make_ui():
  hud = Label.new()
  hud.position = Vector2(28,20)
  root.add_child(hud)
+ hud.hide()
+ survival_hud=preload("res://survival_hud.gd").new(); survival_hud.game=self
+ root.add_child(survival_hud)
  prompt = Label.new()
  prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
  prompt.position += Vector2(-330,-110)
@@ -686,8 +801,20 @@ func make_ui():
  prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
  root.add_child(prompt)
  notices = Label.new()
- notices.position = Vector2(28,302)
+ notices.position = Vector2(42,158)
+ notices.custom_minimum_size.x=350; notices.size.x=350
+ notices.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+ notices.add_theme_font_size_override("font_size",16)
  root.add_child(notices)
+ caption_label=Label.new(); caption_label.position=Vector2(240,580)
+ caption_label.custom_minimum_size=Vector2(800,58)
+ caption_label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
+ caption_label.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+ caption_label.add_theme_font_size_override("font_size",20)
+ caption_label.add_theme_color_override("font_color",Color("eee1bb"))
+ caption_label.add_theme_color_override("font_shadow_color",Color.BLACK)
+ caption_label.add_theme_constant_override("shadow_outline_size",4)
+ caption_label.mouse_filter=Control.MOUSE_FILTER_IGNORE; caption_label.hide(); root.add_child(caption_label)
  damage_flash=ColorRect.new()
  damage_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
  damage_flash.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -719,6 +846,8 @@ func make_ui():
  scroll.add_child(content)
 
 func clear_panel(title: String):
+ panel.position=Vector2(310,55); panel.size=Vector2(660,600)
+ content.get_parent().custom_minimum_size=Vector2(600,550)
  for child in content.get_children():
   content.remove_child(child)
   child.queue_free()
@@ -746,6 +875,7 @@ func button(t: String,callback: Callable,enabled = true):
  b.disabled = not enabled
  b.pressed.connect(callback)
  content.add_child(b)
+ return b
 
 func close_panel():
  if settings_active: save_settings(); settings_active=false
@@ -757,20 +887,60 @@ func close_panel():
 func menu():
  if settings_active: save_settings(); settings_active=false
  clear_panel("雾 线 之 外")
+ if not playing:
+  content.get_parent().custom_minimum_size=Vector2(600,420)
+  panel.position=Vector2(76,120); panel.set_deferred("size",Vector2(660,460))
  text_line("BEYOND THE MISTLINE",20)
- text_line("2049 · 北境沉降带\n海潮带走了一切，灯塔仍在等待回应。")
- button("开始新的旅程",start_new)
+ text_line("简略试玩版 · 0.21\n搜集物资，建立营地，修复三处设施，找回海雾之外的回应。",17)
+ button("开始新的旅程",request_new_game)
  button("继续旅程",load_game,FileAccess.file_exists(SAVE) or FileAccess.file_exists(SAVE+".bak"))
  if playing:
   button("返回游戏",close_panel)
   button("保存进度",func(): save_game(); toast("进度已保存"))
  button("设置",settings)
+ button("新手路线与玩法",quick_guide)
  button("操作与素材鸣谢",credits)
  button("退出",func():
   if playing: save_game()
   get_tree().quit())
 
+func request_new_game():
+ if not FileAccess.file_exists(SAVE) and not FileAccess.file_exists(SAVE+".bak"):
+  start_new(); return
+ clear_panel("开始新的旅程？")
+ text_line("当前已有旅程进度。新旅程保存后将替换原有进度；如果想继续探索，请返回主菜单选择继续旅程。",18)
+ text_line("确认前不会重置当前旅程。",16)
+ var spacer=Control.new(); spacer.custom_minimum_size.y=100; content.add_child(spacer)
+ button("返回主菜单，保留原进度",menu)
+ button("确认开始新旅程",start_new)
+
+func quick_guide():
+ clear_panel("从海岸出发")
+ text_line("目标：恢复灯塔 → 研究所 → 山地通讯站",21)
+ text_line("①绕过残骸，E搜索漂流物资。Tab制作石斧，按6装备。\n②B建造篝火，去东北渔村找伊莱和饮水。按2饮水。\n③东面仓库和工厂有材料。带金属4、零件2修复西侧灯塔。\n④建工作台，制作工具包修复研究所。\n⑤制作电池，带电池1、零件4修复北方通讯站。",17)
+ text_line("恢复最后的信号，即可完成本试玩章节。\n通关后仍可自由探索、完成支线和扩建营地。",17)
+ text_line("WASD移动 · 鼠标转向 · Shift冲刺 · Ctrl潜行\nSpace跳跃 · E交互 · 左键攻击 · 右键格挡\nTab背包/制作 · B建造 · M地图 · J任务 · F5保存\n有些配方需要工作台或点燃的篝火，离开设施会暂停制作。避免直接喝河水，敌人靠近时先绕行。",16)
+ button("返回",func(): menu())
+
+func chapter_complete():
+ clear_panel("海雾之外，终于有了回应")
+ text_line("“保持灯光，我们正在返航。”",24)
+ text_line("灯塔、研究所与山地通讯站重新连成一线。\n伊莱守住了海岸，而你把失落的信号送出了灰潮。\n\n简略试玩章节已完成，进度已经保存。",19)
+ var sides=0
+ for state in quests.states.values():
+  if state==2: sides+=1
+ text_line("地标探索 %d / 10    支线 %d / 3    区域记录 %d / 3"%[discovered.size(),sides,story_read.size()],17)
+ button("继续探索与建造",close_panel)
+ button("查看任务与未完成探索",journal)
+ button("保存并返回主菜单",func(): save_game(); playing=false; menu())
+
 func start_new():
+ caption_left=0
+ for tween in world_tweens:
+  if tween.is_valid(): tween.kill()
+ world_tweens.clear()
+ for projectile in get_tree().get_nodes_in_group("world_projectiles"): projectile.queue_free()
+ for npc in survivors: npc.reset()
  for lure in get_tree().get_nodes_in_group("stone_lures"): lure.queue_free()
  inv.clear()
  survival=preload("res://survival_state.gd").new()
@@ -778,7 +948,11 @@ func start_new():
  milestones={}
  quests=preload("res://quest_log.gd").new(); pump_stock=0; pump_cooldown=0
  death_time=0; hit_reaction=0; body.rotation.z=0; noise_time=0
+ if body.has_method("reset_pose"): body.reset_pose()
+ attack_time=0; harvest_cooldown=0; previous_fall_speed=0; autosave=0
+ player.velocity=Vector3.ZERO
  bag=Bag.new(); equipped=""; durability.clear(); selected_slot=-1
+ gear.worn=""; update_outfit()
  quickbar=["野果","净水","绷带","罐头","烤肉","石斧","木矛","弓"]
  update_held_tool()
  removed.clear()
@@ -790,6 +964,10 @@ func start_new():
  for e in entities:
   if is_instance_valid(e.node):
    e.node.show()
+   e.node.rotation=e.get("initial_rotation",Vector3.ZERO)
+   e.erase("hits")
+   var mark=e.node.get_node_or_null("HarvestMarks")
+   if mark!=null: mark.queue_free()
    set_collisions(e.node,false)
    if e.id.begins_with("death-") or e.id.begins_with("enemy"): e.node.queue_free()
  for s in structures:
@@ -807,6 +985,7 @@ func start_new():
   e.erase("path"); e.erase("windup")
  health = 100; hunger = 100; thirst = 100; stamina = 100
  temperature = 37; clock = 8; weather = 0
+ weather_time=0; climate.snap(0)
  player.position = ground(Vector2(-65,72))+Vector3.UP
  playing = true
  close_panel()
@@ -815,6 +994,11 @@ func start_new():
 func settings():
  clear_panel("设置")
  settings_active=true
+ text_line("画质预设")
+ var quality=OptionButton.new()
+ for title in ["节能 · 无阴影 / 关闭抗锯齿","标准 · 动态阴影","清晰 · 动态阴影 / 4×抗锯齿","自定义"]: quality.add_item(title)
+ quality.selected=quality_preset; content.add_child(quality)
+ quality.item_selected.connect(func(index): apply_quality(index); settings())
  for data in [["总音量",0.0,1.0,volume],["鼠标灵敏度",0.001,0.008,sensitivity],["视野",55.0,95.0,fov]]:
   text_line(data[0])
   var slider = HSlider.new()
@@ -835,7 +1019,12 @@ func settings():
  var invert=CheckButton.new(); invert.text="反转鼠标 Y 轴"; invert.button_pressed=invert_y; content.add_child(invert)
  invert.toggled.connect(func(value): invert_y=value)
  var shadows=CheckButton.new(); shadows.text="动态阴影（关闭可减少图形负载）"; shadows.button_pressed=shadows_enabled; content.add_child(shadows)
- shadows.toggled.connect(func(value): shadows_enabled=value; sun.shadow_enabled=value)
+ shadows.toggled.connect(func(value): shadows_enabled=value; sun.shadow_enabled=value; quality_preset=3; quality.select(3))
+ var shake=CheckButton.new(); shake.text="受击镜头轻微晃动"; shake.button_pressed=camera_shake_enabled; content.add_child(shake)
+ shake.toggled.connect(func(value): camera_shake_enabled=value)
+ var subtitles=CheckButton.new(); subtitles.text="环境声响与电台文字字幕"; subtitles.button_pressed=subtitles_enabled; content.add_child(subtitles)
+ subtitles.toggled.connect(func(value): subtitles_enabled=value; update_captions(0))
+ button("键位与操作说明",credits)
  button("保存设置并返回",func(): save_settings(); menu())
 
 func load_settings():
@@ -848,6 +1037,10 @@ func load_settings():
  shadows_enabled=bool(config.get_value("video","shadows",true))
  selected_resolution=clampi(int(config.get_value("video","resolution",0)),0,2)
  saved_fullscreen=bool(config.get_value("video","fullscreen",false))
+ quality_preset=clampi(int(config.get_value("video","quality",1)),0,3)
+ antialiasing=clampi(int(config.get_value("video","antialiasing",0)),0,2)
+ camera_shake_enabled=bool(config.get_value("accessibility","camera_shake",true))
+ subtitles_enabled=bool(config.get_value("accessibility","subtitles",true))
  DisplayServer.window_set_size(RESOLUTIONS[selected_resolution])
  DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if saved_fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
 
@@ -857,50 +1050,41 @@ func save_settings():
  config.set_value("input","invert_y",invert_y); config.set_value("video","fov",fov)
  config.set_value("video","shadows",shadows_enabled); config.set_value("video","resolution",selected_resolution)
  config.set_value("video","fullscreen",saved_fullscreen)
+ config.set_value("video","quality",quality_preset); config.set_value("video","antialiasing",antialiasing)
+ config.set_value("accessibility","camera_shake",camera_shake_enabled); config.set_value("accessibility","subtitles",subtitles_enabled)
  if config.save("user://settings.cfg")!=OK: toast("设置保存失败")
+
+func apply_quality(index: int):
+ quality_preset=index
+ if index<3:
+  shadows_enabled=index!=0
+  antialiasing=Viewport.MSAA_4X if index==2 else Viewport.MSAA_DISABLED
+ apply_video_flags()
+
+func apply_video_flags():
+ get_viewport().msaa_3d=antialiasing
+ if is_instance_valid(sun): sun.shadow_enabled=shadows_enabled
+ if is_instance_valid(camera): camera.far=380 if quality_preset==0 else 650
+
+func show_caption(text: String,duration: float=5.0):
+ caption_label.text=text; caption_left=duration; update_captions(0)
+
+func update_captions(dt: float):
+ if caption_label==null: return
+ if playing and not panel_open: caption_left=max(0,caption_left-dt)
+ caption_label.visible=subtitles_enabled and caption_left>0 and playing and not panel_open
 
 func credits():
  clear_panel("北境生存手册")
  text_line("G 投掷石头：消耗1块石头，落点声响可引开尚未发现你的敌人。\n遮挡视线后蹲伏离开；冲刺声仍可能暴露你的位置。")
- text_line("WASD 移动 · Shift 冲刺 · Ctrl 蹲伏\nSpace 跳跃 · 鼠标转向 · E 交互 / 采集 / 开关门\n左键 攻击 / 确认建造 · 右键 取消建造\nTab 背包制作 · B 建造 · M 地图 · J 任务\n1–8 快捷栏 · 背包中拖拽物品至快捷栏分配\n右键物品拆分，点击物品后装备、使用或丢弃\nF5 保存 · Esc 菜单\n\n地形、程序模型、UI、合成音效：本项目原创。\nGodot Engine 4.5.2：MIT License。\n材质：Poly Haven / CC0，作者见 ASSET_CREDITS。\n当前为开发版本，完整美术及最终验收尚未完成。")
+ text_line("WASD 移动 · Shift 冲刺 · Ctrl 蹲伏\nSpace 跳跃 · 鼠标转向 · E 交互 / 采集 / 开关门\n左键 攻击 / 确认建造 · 右键 格挡 / 取消建造\nTab 背包制作 · B 建造 · M 地图 · J 任务\n1–8 快捷栏 · 背包中拖拽物品至快捷栏分配\n右键物品拆分，点击物品后装备、使用或丢弃\nF5 保存 · Esc 菜单\n\n地形、场景几何、UI、合成音效：本项目原创。\n角色与动画：Quaternius / CC0，本项目制作衣装与动作适配。\nGodot Engine 4.5.2：MIT License。\n材质：Poly Haven / CC0，作者见 ASSET_CREDITS。\n当前为开发版本，完整美术及最终验收尚未完成。")
  button("返回",menu)
 
 func inventory():
  bag.sync(inv)
+ gear.reconcile(inv)
  clear_panel("行囊与制作")
- text_line("负重 %.1f / 30 kg · 装备：%s" % [weight(),equipped if equipped!="" else "徒手"],17)
- text_line("拖拽交换或合并 · 右键拆分 · 点击查看 / 使用\n物品可拖至下方快捷栏，数字键 1–8 使用。",15)
- var grid = GridContainer.new()
- grid.columns=6
- content.add_child(grid)
- for i in range(24):
-  var slot = BagSlot.new()
-  var data = bag.slots[i]
-  slot.index=i; slot.item=data.get("item",""); slot.receiver=drop_slot
-  slot.text="%02d\n%s"%[i+1,"—" if data.is_empty() else data.item+" ×"+str(data.count)]
-  slot.custom_minimum_size=Vector2(92,52)
-  var style=StyleBoxFlat.new()
-  style.bg_color=Color("284044") if i==selected_slot else Color("17292d")
-  style.border_color=Color("b5a47e") if not data.is_empty() else Color("365054")
-  style.set_border_width_all(1); style.set_corner_radius_all(3)
-  slot.add_theme_stylebox_override("normal",style)
-  slot.add_theme_font_size_override("font_size",15)
-  var index = i
-  slot.pressed.connect(func(): selected_slot=index; inventory())
-  slot.gui_input.connect(func(event):
-   if event is InputEventMouseButton and event.pressed and event.button_index==MOUSE_BUTTON_RIGHT:
-    bag.split(index); inventory())
-  grid.add_child(slot)
- if selected_slot>=0 and not bag.slots[selected_slot].is_empty():
-  var item = bag.slots[selected_slot].item
-  text_line(item+" · 单件 %.2f kg"%ITEMS.get(item,0.2)+( " · 耐久 %d/100"%durability.get(item,100) if item in Bag.TOOLS else ""),16)
-  button("装备 / 使用 "+item,func(): use_item(item); inventory(),item in Bag.TOOLS or item in ["野果","净水","绷带","罐头","烤肉","河水","生肉"])
-  if item in ["河水","生肉"]: text_line("直接食用有中毒风险；请净水或烹饪。",15)
-  button("丢弃所选堆叠（可在地上找回）",func():
-   var s = bag.slots[selected_slot].duplicate()
-   bag.slots[selected_slot]={}; inv=bag.totals()
-   loot(player.position+Vector3(1,0,0),"丢下的物品",{s.item:s.count},"death-drop-"+str(Time.get_ticks_usec()))
-   inventory())
+ preload("res://inventory_view.gd").new().draw(self)
  var quick = HBoxContainer.new()
  content.add_child(quick)
  for i in range(8):
@@ -909,7 +1093,9 @@ func inventory():
   slot.text=str(i+1)+"\n"+quickbar[i]; slot.custom_minimum_size=Vector2(69,48)
   slot.add_theme_font_size_override("font_size",14); quick.add_child(slot)
  if not bag.overflow.is_empty():
-  text_line("待领取输出："+str(bag.overflow),15)
+  var pending_text=""
+  for item in bag.overflow: pending_text+="%s ×%d  "%[item,bag.overflow[item]]
+  text_line("待领取物品："+pending_text,15)
   button("领取待输出物品（先腾空背包）",func():
    var pending=bag.overflow.duplicate(); bag.overflow.clear()
    for k in pending: inv[k]=inv.get(k,0)+pending[k]
@@ -921,7 +1107,15 @@ func inventory():
  for name in RECIPES:
   var n = name
   var cost = RECIPES[n]
-  button(n+"  ·  "+cost_text(cost)+"  %.0f秒"%craft_duration(n)+("  [需要工作台]" if n in ["弓","滤芯","工具包","电池"] else ""),func(): begin_craft(n),craft_job.is_empty() and can_pay(cost) and craft_station(n))
+  var cost_label=RichTextLabel.new(); cost_label.bbcode_enabled=true; cost_label.fit_content=true; cost_label.scroll_active=false
+  cost_label.custom_minimum_size.x=560
+  var requirements=""
+  for material in cost:
+   requirements+="[color=%s]%s %d/%d[/color]   "%["#b7c6a5" if inv.get(material,0)>=cost[material] else "#e79c86",material,inv.get(material,0),cost[material]]
+  cost_label.text=requirements; content.add_child(cost_label)
+  var craft_button=button(n+"  ·  %.0f秒"%craft_duration(n)+("  [需要工作台]" if n in ["弓","滤芯","工具包","电池","加固背心"] else "  [徒手]"),func(): begin_craft(n),craft_job.is_empty() and can_pay(cost) and craft_station(n))
+  craft_button.icon=catalog.icon(n); craft_button.expand_icon=true; craft_button.add_theme_constant_override("icon_max_width",24)
+  craft_button.tooltip_text=catalog.description(n)
  button("关闭",close_panel)
 
  if "--ui-test" in OS.get_cmdline_user_args() and qa_dir!="":
@@ -936,12 +1130,29 @@ func drop_slot(data: Dictionary,index: int,kind: String):
 
 func use_item(item: String):
  if inv.get(item,0)<=0: toast("没有"+item); return
- if item in Bag.TOOLS:
+ if item in gear.OUTFITS:
+  gear.worn="" if gear.worn==item else item
+  update_outfit()
+  toast("已穿上："+gear.worn if gear.worn!="" else "已脱下上身装备")
+ elif item in Bag.TOOLS:
   equipped="" if equipped==item else item
   if not durability.has(item): durability[item]=100
   update_held_tool()
   toast("已装备："+equipped if equipped!="" else "已收起工具")
- else: consume(item)
+ elif item in catalog.CONSUMABLES: consume(item)
+ else: toast(item+"用于制作或交付，不能直接使用。")
+
+func update_outfit():
+ if is_instance_valid(outfit_visual): outfit_visual.queue_free()
+ if is_instance_valid(body) and body.has_method("outfit"):
+  outfit_visual=body.outfit(gear.worn)
+  return
+ if not is_instance_valid(body) or gear.worn=="": return
+ outfit_visual=Node3D.new(); body.add_child(outfit_visual)
+ var coat=gear.worn=="防雨外套"
+ sphere(outfit_visual,Vector3(0,1.13,0),Vector3(0.63,0.78 if coat else 0.64,0.43),Color("74816c") if coat else Color("68736d"))
+ for side in [-1,1]:
+  box(outfit_visual,Vector3(side*0.16,1.1,-0.225),Vector3(0.12,0.15,0.035),Color("545f50"))
 
 func wear_tool(amount: int):
  if equipped=="": return
@@ -953,8 +1164,10 @@ func wear_tool(amount: int):
 func update_held_tool():
  if is_instance_valid(held_tool): held_tool.queue_free()
  if not is_instance_valid(body) or equipped=="": return
- held_tool=Node3D.new(); limbs[3].add_child(held_tool)
- held_tool.position=Vector3(0,-0.55,-0.16)
+ held_tool=Node3D.new()
+ if body.has_method("outfit"): body.tool_grip.add_child(held_tool)
+ else:
+  limbs[3].add_child(held_tool); held_tool.position=Vector3(0,-0.55,-0.16)
  if equipped=="石斧":
   cylinder(held_tool,Vector3.ZERO,0.045,0.8,Color("796047"))
   box(held_tool,Vector3(0,0.35,0),Vector3(0.45,0.25,0.15),Color("8c9491"))
@@ -987,7 +1200,7 @@ func pay(cost: Dictionary):
 
 func craft_station(n: String) -> bool:
  if n == "烤肉": return near_structure("篝火")
- if n in ["弓","滤芯","工具包","电池"]: return near_structure("工作台")
+ if n in ["弓","滤芯","工具包","电池","加固背心"]: return near_structure("工作台")
  return true
 
 func craft(n: String):
@@ -1101,6 +1314,7 @@ func is_sheltered(position: Vector3) -> bool:
 
 func journal():
  clear_panel("寻找最后的信号")
+ if not survivors.is_empty(): text_line("守岸人 · 伊莱：%s\n清晨巡视村西海岸，白天整理渔村补给，傍晚守望灯塔，夜间回到村口雨棚休息。"%survivors[0].activity,16)
  for id in quests.states:
   var label=["未接受","进行中","已完成"][quests.states[id]]
   text_line("支线 · %s：%s"%[quests.DEFINITIONS[id].title,label],17)
@@ -1112,6 +1326,7 @@ func journal():
 
 func character_status():
  clear_panel("角色与技能")
+ text_line("上身：%s · 保暖 +%.2f℃ · 敌人伤害 %d%%"%[gear.worn if gear.worn!="" else "未穿戴",gear.insulation(),gear.damage_multiplier()*100],17)
  text_line("体温 %.1f℃ · 疲劳 %d/100 · 淋湿 %d%%\n中毒剩余 %.0f 秒\n装备：%s"%[temperature,survival.fatigue,survival.wetness,survival.poison,equipped if equipped!="" else "徒手"],18)
  for skill in skill_xp:
   text_line("%s · %d级 · 经验 %d/100"%[skill,skill_level(skill),int(skill_xp[skill])%100],18)
@@ -1152,6 +1367,8 @@ func interact():
  if target.is_empty(): return
  var e = target
  match e.kind:
+  "recover-arrow":
+   if is_instance_valid(e.node): e.node.recover()
   "side-radio": quest_panel("radio")
   "sign":
    clear_panel("浅滩潮汐警示")
@@ -1168,11 +1385,13 @@ func interact():
     save_game()
    button("收起记录",close_panel)
   "resource":
+   if e.id in removed: return
    if harvest_cooldown>0: return
    harvest_cooldown=0.65; attack_time=0.65
    if e.title in ["灰松","石头"]:
     var damage = 2+int(skill_level("采集")/2) if equipped=="石斧" else 1
     e["hits"]=int(e.get("hits",0))+damage
+    update_harvest_mark(e)
     stamina=max(0,stamina-5); wear_tool(2)
     var needed = 6 if e.title=="灰松" else 3
     beep(200,0.08); soundscape.play_at("chop" if e.title=="灰松" else "stone",e.node.global_position)
@@ -1185,7 +1404,7 @@ func interact():
    navigation.invalidate()
    toast(e.title+"："+str(e.gives))
    if e.title == "灰松":
-    var tween = create_tween()
+    var tween = world_tween()
     tween.tween_property(e.node,"rotation:z",1.5,0.8)
     tween.tween_callback(e.node.hide)
    else: e.node.hide()
@@ -1205,10 +1424,14 @@ func interact():
    toast("设施恢复："+e.title+"。按 J 查看下一条线索。")
    beep(880,0.4); save_game()
    refresh_signals()
+   var recordings={"lighthouse":"【灯塔录音】洋流并未停止，信号来自高地。","lab":"【研究所】数据回传：携带研究数据前往山地通讯站。","tower":"【通讯塔】保持灯光，我们正在返航。"}
+   if recordings.has(e.id): show_caption(recordings[e.id],7.0)
+   if e.id=="tower": chapter_complete()
   "water":
    pump_panel()
   "npc":
    clear_panel("守岸人 · 伊莱")
+   if not survivors.is_empty(): text_line("伊莱放下手边的事，转向你。\n当前日程："+survivors[0].activity,16)
    text_line("“海潮退去的时候，我听见灯塔里有人说话。\n可那地方早就没有人了。”\n\n“别空手进树林。做一支矛。\n想修灯塔，就去东面的仓库找零件。”",20)
    button("交易：3 野果 换 2 布料",func():
     if inv.get("野果",0)>=3:
@@ -1221,7 +1444,7 @@ func interact():
     "门框":
      var hinge=e.node.get_node("Door")
      var opened=not e.get("opened",false); e["opened"]=opened
-     create_tween().tween_property(hinge,"rotation:y",-PI/2 if opened else 0.0,0.3)
+     world_tween().tween_property(hinge,"rotation:y",-PI/2 if opened else 0.0,0.3)
      navigation.invalidate()
      beep(180,0.1)
     "睡袋":
@@ -1303,6 +1526,7 @@ func storage(e: Dictionary):
  button("关闭",close_panel)
 
 func consume(n: String):
+ if not n in catalog.CONSUMABLES: return
  if inv.get(n,0)<=0: toast("没有"+n); return
  inv[n]-=1
  match n:
@@ -1355,7 +1579,7 @@ func throw_stone():
 
 func launch_arrow(origin: Vector3,direction: Vector3,damage: float):
  var arrow=preload("res://arrow.gd").new(); arrow.game=self; arrow.velocity=direction*38; arrow.damage=damage
- add_child(arrow); arrow.global_position=origin
+ add_child(arrow); arrow.global_position=origin; arrow.add_to_group("world_projectiles")
  var shaft=cylinder(arrow,Vector3.ZERO,0.018,0.85,Color("a58a62")); shaft.rotation.x=PI/2
  var tip=cylinder(arrow,Vector3(0,0,-0.45),0.05,0.15,Color("b2bbb5"),0); tip.rotation.x=-PI/2
  return arrow
@@ -1370,8 +1594,20 @@ func damage_enemy(enemy: Dictionary,damage: float):
  if enemy.hp<=0:
   enemy.state="Dead"; set_collisions(enemy.node,true)
   enemy.node.get_node("Indicator").hide()
-  create_tween().tween_property(enemy.node,"rotation:z",PI/2,0.4)
+  world_tween().tween_property(enemy.node,"rotation:z",PI/2,0.4)
   loot(enemy.node.position,"猎物",{"生肉":2,"纤维":2},"enemy"+str(enemies.find(enemy)))
+
+func world_tween() -> Tween:
+ var tween=create_tween(); world_tweens.append(tween)
+ return tween
+
+func update_harvest_mark(e: Dictionary):
+ var old=e.node.get_node_or_null("HarvestMarks")
+ if old!=null: e.node.remove_child(old); old.queue_free()
+ if e.title!="灰松" or e.get("hits",0)<=0 or e.id in removed: return
+ var mark=Node3D.new(); mark.name="HarvestMarks"; e.node.add_child(mark)
+ for i in range(mini(5,int(e.hits))):
+  box(mark,Vector3(0,1.2+i*0.07,-0.27),Vector3(0.2+i*0.02,0.04,0.05),Color("b79866"))
 
 func visible_between(a: Vector3,b: Vector3) -> bool:
  var query = PhysicsRayQueryParameters3D.create(a,b)
@@ -1383,16 +1619,18 @@ func set_collisions(n: Node,disabled: bool):
  if n is CollisionShape3D: n.set_deferred("disabled",disabled)
  for child in n.get_children(): set_collisions(child,disabled)
 
+func _input(event):
+ if event is InputEventKey and event.pressed and not event.echo and event.keycode==KEY_ESCAPE:
+  if panel_open and playing: close_panel()
+  else: menu()
+  get_viewport().set_input_as_handled()
+
 func _unhandled_input(event):
  if event is InputEventMouseMotion and not panel_open:
   if mouse_look_guard>0: return
   yaw -= event.relative.x*sensitivity
   pitch = clamp(pitch-event.relative.y*sensitivity*(-1 if invert_y else 1),-1.1,0.45)
  if event is InputEventKey and event.pressed and not event.echo:
-  if event.keycode==KEY_ESCAPE:
-   if panel_open and playing: close_panel()
-   else: menu()
-   return
   if not playing or panel_open or death_time>0: return
   match event.keycode:
    KEY_E: interact()
@@ -1460,20 +1698,25 @@ func build_clear() -> bool:
 
 func _physics_process(dt):
  frame_count+=1
+ update_captions(dt)
+ world_tweens=world_tweens.filter(func(tween): return tween.is_valid() and tween.get_loops_left()!=0)
+ for tween in world_tweens:
+  if playing and not panel_open: tween.play()
+  else: tween.pause()
  mouse_look_guard=max(0,mouse_look_guard-dt)
  if playing and not navigation.ready: navigation.scan(self)
  damage_flash.color.a=move_toward(damage_flash.color.a,0.0,dt*0.6)
- harvest_cooldown=max(0,harvest_cooldown-dt)
  if not playing or panel_open:
   update_camera(dt)
   return
  if death_time>0:
   death_time=max(0,death_time-dt)
-  body.rotation.z=move_toward(body.rotation.z,PI/2,dt*2)
+  if not body.has_method("outfit"): body.rotation.z=move_toward(body.rotation.z,PI/2,dt*2)
   update_camera(dt)
   if death_time<=0: respawn()
   return
  noise_time=max(0,noise_time-dt)
+ harvest_cooldown=max(0,harvest_cooldown-dt)
  for limb in limbs: limb.rotation.x=move_toward(limb.rotation.x,0,dt*5)
  hit_reaction=max(0,hit_reaction-dt); landing_reaction=max(0,landing_reaction-dt)
  var dir = Vector2(float(Input.is_physical_key_pressed(KEY_D))-float(Input.is_physical_key_pressed(KEY_A)),float(Input.is_physical_key_pressed(KEY_S))-float(Input.is_physical_key_pressed(KEY_W))).normalized()
@@ -1518,7 +1761,7 @@ func _physics_process(dt):
    elif near_structure("地基") or (in_marsh(player.position) and player.position.y>1): surface="wood"
    elif player.position.x>60: surface="metal"
    soundscape.play_at(surface,player.position)
- body.position.y = -0.35 if crouch else 0.0
+ body.position.y = -0.35 if crouch and not body.has_method("outfit") else 0.0
  body.position.y-=sin(landing_reaction/0.35*PI)*0.15
  body.rotation.z=sin(hit_reaction*25)*hit_reaction*0.35
  if not moving and player.is_on_floor(): body.position.y+=sin(Time.get_ticks_msec()*0.002)*0.012
@@ -1526,18 +1769,22 @@ func _physics_process(dt):
   limbs[0].rotation.x=0.3; limbs[2].rotation.x=-0.25
  if block_held: limbs[1].rotation.x=1.2; limbs[3].rotation.x=1.1
  if attack_time>0 and limbs.size()>3: limbs[3].rotation.x=sin(attack_time/0.65*PI)*1.8
- survival.tick(dt,sprint,weather>=2,is_sheltered(player.position),near_structure("篝火"))
+ gear.reconcile(inv)
+ if is_instance_valid(outfit_visual) and gear.worn=="": update_outfit()
+ survival.tick(dt,sprint,climate.raining(weather),is_sheltered(player.position),near_structure("篝火"),gear.rain_exposure()*clamp(climate.rain/0.35,0,1.8))
  stamina=clamp(stamina+dt*(-8 if sprint else survival.stamina_recovery()),0,80 if survival.fatigue>70 else 100)
  advance_craft(dt)
  attack_time=max(0,attack_time-dt)
  clock=fmod(clock+dt/60,24)
  weather_time+=dt
- if weather_time>100: weather=(weather+1)%4; weather_time=0
+ if weather_time>100:
+  weather=climate.next(weather); weather_time=0
+  show_caption("【天气】"+climate.preset(weather).name)
  hunger=max(0,hunger-dt*0.025)
  thirst=max(0,thirst-dt*(0.045 if weather==0 else 0.035))
- var target_temperature=35.5 if weather>=2 else (36.2 if clock<6 or clock>19 else 37.0)
+ var target_temperature=float(climate.preset(weather).temperature)-(0.8 if clock<6 or clock>19 else 0.0)
  if player.position.z< -100: target_temperature-=0.5
- target_temperature=min(37,target_temperature+skill_level("生存")*0.06)
+ target_temperature=min(37,target_temperature+skill_level("生存")*0.06+gear.insulation())
  temperature=move_toward(temperature,target_temperature,dt*0.008)
  if near_structure("篝火"): temperature=move_toward(temperature,37,dt*0.1)
  if survival.wetness>50 and not is_sheltered(player.position): temperature=move_toward(temperature,35,dt*0.006)
@@ -1589,6 +1836,9 @@ func update_camera(dt: float):
  var focus = player.position+Vector3(0,1.5,0)
  var offset = Vector3(0.65,1.0,5.6).rotated(Vector3.RIGHT,pitch).rotated(Vector3.UP,yaw)
  var desired = focus+offset
+ if camera_shake_enabled and hit_reaction>0:
+  var time=float(Time.get_ticks_msec())/1000.0
+  desired+=Vector3(sin(time*37),sin(time*29),0)*hit_reaction*0.1
  var ray = PhysicsRayQueryParameters3D.create(focus,desired)
  ray.exclude=[player.get_rid()]
  var hit = get_world_3d().direct_space_state.intersect_ray(ray)
@@ -1651,6 +1901,7 @@ func update_enemies(dt: float,crouch: bool,sprint: bool):
    elif e.cooldown<=0:
     if not e.has("windup"):
      e.windup=0.7; toast("%s准备攻击！后退或按住右键防御。"%["盐脊犬" if e.kind==0 else "巨蟹"])
+     show_caption("【近处】"+("盐脊犬发出低吼" if e.kind==0 else "巨蟹举起螯足"),2.0)
     else:
      e.windup-=dt
      if e.windup<=0:
@@ -1659,7 +1910,7 @@ func update_enemies(dt: float,crouch: bool,sprint: bool):
        var facing=(n.position-player.position).normalized().dot(-camera.global_basis.z)>0.2
        if block_held and facing:
         stamina=max(0,stamina-18); incoming*=0.25; toast("格挡成功 · 消耗体力")
-       health-=incoming; hit_reaction=0.45; damage_flash.color.a=0.24; beep(90,0.15); soundscape.play_at("hit",player.position)
+       health-=incoming*gear.damage_multiplier(); hit_reaction=0.45; damage_flash.color.a=0.24; beep(90,0.15); soundscape.play_at("hit",player.position)
       e.erase("windup"); e.cooldown=1.6
   if e.state=="Alert": speed=0
   var direction=(goal-n.position); direction.y=0
@@ -1685,8 +1936,8 @@ func update_enemies(dt: float,crouch: bool,sprint: bool):
    var part=p.node
    part.position=p.position
    part.rotation=p.rotation
-   if speed>0 and part.has_meta("phase"): part.rotation.x+=sin(e.timer*10+float(part.get_meta("phase"))*PI)*0.4
-   if e.has("windup"): part.position.z+=sin(e.windup*5)*0.15
+   if speed>0 and part.has_meta("phase") and not part.has_meta("strike"): part.rotation.x+=sin(e.timer*10+float(part.get_meta("phase"))*PI)*0.32
+   if e.has("windup") and part.has_meta("strike"): part.rotation.x-=sin(e.windup*5)*0.45
    if e.get("hurt",0)>0: part.position.x+=sin(e.hurt*40)*0.08
   e["hurt"]=max(0,e.get("hurt",0)-dt)
 
@@ -1708,10 +1959,11 @@ func obstacle_ahead(enemy: CharacterBody3D,direction: Vector3) -> bool:
  return not get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
 
 func update_world(dt: float):
+ climate.tick(dt,weather)
  if signal_signature!=str(repairs): refresh_signals()
  pump_cooldown=max(0,pump_cooldown-dt)
  if quests.states.pump==2: pump_stock=min(5,pump_stock+dt/40)
- wet_ground=move_toward(wet_ground,1.0 if weather>=2 else 0.0,dt*0.03)
+ wet_ground=move_toward(wet_ground,min(1.0,climate.rain*2),dt*0.03)
  terrain_material.set_shader_parameter("wet",wet_ground)
  if inv.get("木材",0)>=3 and inv.get("石头",0)>=3: milestones["gather"]=true
  if inv.get("石斧",0)>0: milestones["axe"]=true
@@ -1720,25 +1972,28 @@ func update_world(dt: float):
  for s in structures:
   if s.kind=="篝火":
    var sheltered=is_sheltered(s.node.position)
-   s.fuel=max(0,s.fuel-dt*(2.5 if weather>=2 and not sheltered else 1.0))
+   s.fuel=max(0,s.fuel-dt*(1.0+climate.rain*1.5 if not sheltered else 1.0))
    s.node.get_node("Flame").visible=s.fuel>0
    s.node.get_node("FireLight").visible=s.fuel>0
-  elif s.kind=="集雨器" and weather>=2: s.water=min(5,s.water+dt/30)
+  elif s.kind=="集雨器": s.water=min(5,s.water+dt/30*climate.rain)
  rain.global_position=player.position+Vector3(0,12,0)
- rain.emitting=weather>=2
+ rain.emitting=climate.rain>0.02
+ rain.color=Color(1,1,1,climate.rain)
+ rain.gravity=Vector3(climate.wind*2,-9,0)
+ foliage_material.set_shader_parameter("wind_scale",climate.wind)
+ sea.material_override.set_shader_parameter("wave_strength",0.6+climate.wind*0.6)
  var daylight = clamp(sin((clock-6)/24*TAU),0.06,1.0)
  sun.rotation_degrees.x=-(clock-6)*7.5
- sun.light_energy=daylight*1.05
- environment.ambient_light_energy=0.13+daylight*0.43
+ sun.light_energy=daylight*1.05*(1-climate.cloud*0.55)
+ environment.ambient_light_energy=0.13+daylight*0.43*(1-climate.cloud*0.3)
  sky_update_clock-=dt
  if sky_update_clock<=0:
   sky_update_clock=0.5
-  sky_material.sky_top_color=Color("101d30").lerp(Color("405e70"),daylight)
+  sky_material.sky_top_color=Color("101d30").lerp(Color("405e70").lerp(Color("667979"),climate.cloud*0.7),daylight)
   sky_material.sky_horizon_color=Color("263748").lerp(Color("a4b7b8"),daylight)
   sky_material.ground_horizon_color=sky_material.sky_horizon_color
   environment.fog_light_color=Color("263c4b").lerp(Color("91a9ad"),daylight)
- var density = [0.0035,0.012,0.007,0.018][weather]
- environment.fog_density=lerp(environment.fog_density,float(density),dt*0.15)
+ environment.fog_density=climate.fog
  sea.position.y=tide_level(clock)
  var cell=Vector2i(floor((player.position.x+210)/20),floor((player.position.z+210)/20))
  for x in range(-1,2):
@@ -1751,12 +2006,13 @@ func update_world(dt: float):
  for poi in POIS:
   if not poi[0] in discovered and player.position.distance_to(ground(poi[1]))<18+skill_level("探索")*2:
    discovered.append(poi[0]); gain_skill("探索",25); toast("发现："+poi[0]+" · 地图已更新")
- var hud_text="雾线之外   /   北境沉降带\n生命 %03d   饱食 %03d   饮水 %03d   体力 %03d   体温 %.1f℃\n%02d:%02d   %s   ·   %s\n\n1–8 快捷物品  |  Tab 背包制作  B 建造  M 地图  J 任务\n主线信号 %d / 3   ·   探索 %d / 10" % [health,hunger,thirst,stamina,temperature,int(clock),int(fmod(clock,1)*60),["晴","浓雾","小雨","暴风雨"][weather],region,repairs.size(),discovered.size()]
+ var hud_text="雾线之外   /   北境沉降带\n生命 %03d   饱食 %03d   饮水 %03d   体力 %03d   体温 %.1f℃\n%02d:%02d   %s   ·   %s\n\n1–8 快捷物品  |  Tab 背包制作  B 建造  M 地图  J 任务\n主线信号 %d / 3   ·   探索 %d / 10" % [health,hunger,thirst,stamina,temperature,int(clock),int(fmod(clock,1)*60),climate.preset(weather).name,region,repairs.size(),discovered.size()]
  hud_text+="\n潮位 %+.2fm · %s"%[sea.position.y,"浅滩可通行" if sea.position.y < -0.25 else "浅滩正在淹没"]
  hud_text+="\n疲劳 %d · 淋湿 %d%% · %s   [C 状态]"%[survival.fatigue,survival.wetness,"中毒 %.0f秒"%survival.poison if survival.poison>0 else "健康"]
  if not craft_job.is_empty(): hud_text+="\n制作 %s · %.1f秒%s"%[craft_job.item,craft_job.left,"（设施距离不足，暂停）" if not craft_station(craft_job.item) else ""]
  hud_text+="\n目标 · "+onboarding_goal()
  if hud.text!=hud_text: hud.text=hud_text
+ survival_hud.region=region
 
 func update_build():
  if build_kind=="":
@@ -1825,11 +2081,13 @@ func die():
 
 func respawn():
  body.rotation.z=0; previous_fall_speed=0
+ if body.has_method("reset_pose"): body.reset_pose()
  cancel_craft()
  var drops = inv.duplicate()
  for k in bag.overflow: drops[k]=drops.get(k,0)+bag.overflow[k]
  inv.clear()
  bag=Bag.new(); equipped=""; durability.clear(); update_held_tool()
+ gear.worn=""; update_outfit()
  var id = "death-"+str(Time.get_unix_time_from_system())
  loot(player.position,"遗失的背包",drops,id)
  player.position=ground(Vector2(-65,65))+Vector3.UP
@@ -1849,6 +2107,15 @@ func save_game():
  var data = {"v":1,"position":[player.position.x,player.position.y,player.position.z],"inv":inv,"removed":removed,"repairs":repairs,"discovered":discovered,"built":built,"stored":stored,"clock":clock,"weather":weather,"health":health,"hunger":hunger,"thirst":thirst,"temperature":temperature,"drops":dropped_loot,"enemies":enemy_state}
  data["bag_slots"]=bag.slots; data["overflow"]=bag.overflow; data["quickbar"]=quickbar
  data["equipped"]=equipped; data["durability"]=durability
+ data["outfit"]=gear.worn
+ var resource_hits={}
+ for e in entities:
+  if e.get("hits",0)>0 and not e.id in removed: resource_hits[e.id]=e.hits
+ data["resource_hits"]=resource_hits
+ data["climate"]=climate.serialize(); data["weather_time"]=weather_time
+ var npc_state=[]
+ for npc in survivors: npc_state.append({"position":[npc.position.x,npc.position.y,npc.position.z]})
+ data["survivors"]=npc_state
  var doors={}
  for e in entities:
   if is_instance_valid(e.node) and e.title=="门框": doors[e.id]=e.get("opened",false)
@@ -1866,9 +2133,13 @@ func load_game():
  start_new()
  inv=data.inv; removed=data.removed; repairs=data.repairs; discovered=data.discovered
  var p = data.position; player.position=Vector3(p[0],p[1],p[2])
- health=clamp(data.health,0,100); hunger=clamp(data.hunger,0,100); thirst=clamp(data.thirst,0,100); clock=fposmod(data.clock,24); weather=clampi(int(data.weather),0,3); temperature=clamp(data.temperature,30,42)
+ health=clamp(data.health,0,100); hunger=clamp(data.hunger,0,100); thirst=clamp(data.thirst,0,100); clock=fposmod(data.clock,24); weather=clampi(int(data.weather),0,5); temperature=clamp(data.temperature,30,42)
+ weather_time=clamp(data.get("weather_time",0),0,100); climate.restore(data.get("climate",{}),weather)
  for e in entities:
   if is_instance_valid(e.node) and e.id in removed: e.node.hide(); set_collisions(e.node,true)
+  elif e.kind=="resource":
+   e["hits"]=clampi(int(data.get("resource_hits",{}).get(e.id,0)),0,6)
+   update_harvest_mark(e)
  for drop in data.get("drops",[]):
   if not drop.id in removed: loot(Vector3(drop.pos[0],drop.pos[1],drop.pos[2]),drop.title,drop.gives,drop.id)
  var enemy_state = data.get("enemies",[])
@@ -1888,6 +2159,11 @@ func load_game():
  if data.has("bag_slots") and data.bag_slots.size()==24: bag.slots=data.bag_slots
  bag.overflow=data.get("overflow",{})
  quickbar=data.get("quickbar",quickbar); equipped=data.get("equipped",""); durability=data.get("durability",{})
+ gear.restore(data.get("outfit",""),inv); update_outfit()
+ var npc_state=data.get("survivors",[])
+ for i in range(mini(npc_state.size(),survivors.size())):
+  var location=npc_state[i].position
+  survivors[i].position=Vector3(location[0],location[1],location[2])
  story_read=data.get("story_read",[]); map_markers=data.get("map_markers",[])
  explored=data.get("explored",{})
  survival.restore(data.get("survival",{}))
@@ -1928,7 +2204,7 @@ func _process(dt):
   print("SETTINGS_PREVIEW_OK"); get_tree().quit()
  if soundscape!=null:
   soundscape.master=volume
-  soundscape.update_mix(player.position,weather,clock<6 or clock>19,dt)
+  soundscape.update_mix(player.position,weather,clock<6 or clock>19,dt,climate.rain,climate.wind)
  if map_preview and frame_count>120:
   if qa_dir!="": get_viewport().get_texture().get_image().save_png(qa_dir.path_join("map-v03.png"))
   print("MAP_PREVIEW_OK"); get_tree().quit()
@@ -2072,12 +2348,20 @@ func test_v04_rules():
  assert(not near_structure("篝火"))
  make_structure("集雨器",player.position+Vector3(3,0,0),0)
  var collector=structures.back()
- weather=2; update_world(180)
+ weather=2; update_world(600)
  assert(is_equal_approx(collector.water,5))
  var before=int(inv.get("净水",0))
  target=entities.back(); interact()
  assert(inv.get("净水",0)==before+5 and is_equal_approx(collector.water,0))
  interact(); assert(inv.get("净水",0)==before+5)
+ weather=4; climate.snap(4)
+ update_world(60)
+ assert(collector.water==0 and not rain.emitting)
+ weather=5; update_world(1)
+ assert(climate.rain>0 and climate.rain<0.75 and rain.emitting)
+ assert(is_equal_approx(float(foliage_material.get_shader_parameter("wind_scale")),climate.wind))
+ assert(float(sea.material_override.get_shader_parameter("wave_strength"))>0.6)
+ print("WEATHER_WORLD_OK dry_clouds rain_transition particles foliage sea")
  collector.water=1.5
  save_game(); load_game()
  assert(is_equal_approx(structures.back().water,1.5))
@@ -2123,6 +2407,14 @@ func test_audio():
 
 func test_materials():
  test_perception()
+ test_climate()
+ for character in "雾线之外生存净水℃→×✓": assert(ui_font.has_char(character.unicode_at(0)))
+ assert(not source_font.allow_system_fallback)
+ var font_server=TextServerManager.get_primary_interface()
+ var axis=font_server.name_to_tag("wght")
+ assert(ui_font.variation_opentype.get(axis)==500.0)
+ print("FONT_AXES ",source_font.get_supported_variation_list()," actual=",font_server.font_get_variation_coordinates(ui_font.get_rids()[0]))
+ print("FONT_OK bundled_chinese glyphs no_system_fallback")
  for id in ["wood_planks","coast_sand_01","forest_ground_04","rusty_metal_02","rock_face_03","concrete_wall_004"]:
   for kind in ["Diffuse","nor_gl","Rough"]:
    var image=material_library.texture(id,kind)
@@ -2143,6 +2435,25 @@ func test_perception():
  senses.observe(e,Vector3.ZERO,false,noise,0.1)
  assert(senses.target(e,Vector3.ZERO)==noise and e.stimulus=="noise")
  print("PERCEPTION_OK last_known no_hidden_tracking memory_decay noise_target")
+
+func test_climate():
+ var model=preload("res://weather_state.gd").new()
+ var names={}; var order={}; var kind=0
+ for i in range(6):
+  names[model.preset(i).name]=true
+  order[kind]=true; kind=model.next(kind)
+ assert(names.size()==6 and order.size()==6 and kind==0)
+ assert(not model.raining(4) and model.raining(2) and model.raining(5))
+ model.tick(0.1,3)
+ assert(model.rain>0 and model.rain<0.02 and model.wind<0.5 and model.cloud<0.02)
+ var saved=model.serialize()
+ var copy=preload("res://weather_state.gd").new(); copy.restore(saved,3)
+ assert(is_equal_approx(model.rain,copy.rain) and is_equal_approx(model.wind,copy.wind))
+ model.tick(60,3)
+ assert(model.rain==1 and model.wind==2 and model.cloud==1)
+ model.tick(60,4)
+ assert(model.rain==0 and is_equal_approx(model.fog,0.005))
+ print("WEATHER_OK six_states cycle gradual rain wind cloud fog restore")
 
 func test_v08_rules():
  for i in range(110): await get_tree().physics_frame
@@ -2182,6 +2493,7 @@ func persistence_fixture():
  equipped="石斧"; durability={"石斧":63}; quickbar[0]="石斧"
  player.position=ground(Vector2(-48,83))+Vector3.UP
  health=71; hunger=64; thirst=59; temperature=36.4; clock=14.25; weather=2
+ weather_time=34.5; climate.tick(2.0,weather)
  survival.fatigue=45; survival.wetness=28; survival.poison=36
  skill_xp["制作"]=131
  craft_job={"item":"木矛","left":2.25,"cost":{"木材":4,"纤维":2}}
@@ -2205,6 +2517,7 @@ func persistence_verify():
  okay=okay and bag.slots[8].get("item","")=="木材" and quickbar[0]=="石斧"
  okay=okay and structures.size()==3 and is_equal_approx(structures.back().water,2.5)
  okay=okay and health==71 and is_equal_approx(clock,14.25) and weather==2
+ okay=okay and is_equal_approx(weather_time,34.5) and is_equal_approx(climate.rain,0.16)
  okay=okay and survival.fatigue==45 and survival.wetness==28 and survival.poison==36
  okay=okay and skill_xp.get("制作",0)==131 and craft_job.get("item","")=="木矛" and craft_job.get("left",0)==2.25
  okay=okay and repairs==["lighthouse"] and story_read==["note-camp"] and map_markers.size()==1

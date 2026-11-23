@@ -24,6 +24,18 @@ func run():
  var arrow=game.launch_arrow(a,(b-a).normalized(),35)
  await frames(24)
  if not check(enemy.hp==60 and is_instance_valid(arrow) and not arrow.flying,"wall failed to stop arrow"): return
+ if not check(arrow.can_recover,"wall arrow cannot be recovered"): return
+ game.player.position=arrow.global_position+Vector3(0,0,1)
+ await frames(3)
+ if not check(game.target.get("kind","")=="recover-arrow","arrow pickup not targeted"): return
+ var before=game.inv.get("箭",0)
+ var key=InputEventKey.new(); key.keycode=KEY_E; key.pressed=true; Input.parse_input_event(key)
+ await frames(2)
+ key=InputEventKey.new(); key.keycode=KEY_E; key.pressed=false; Input.parse_input_event(key)
+ if not check(game.inv.get("箭",0)==before+1,"E did not recover one arrow"): return
+ await frames(2)
+ if not check(not is_instance_valid(arrow),"recovered projectile remained active"): return
+ game.player.position=game.ground(Vector2(-35,135))+Vector3.UP
  wall.queue_free(); await frames(3)
  enemy.timer=-20
  a=game.player.position+Vector3.UP; b=enemy.node.position+Vector3(0,0.8,0)

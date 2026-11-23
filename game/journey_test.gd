@@ -62,7 +62,24 @@ func run():
  await frames(15)
  var start=find_button(game.content,"开始新的旅程")
  if not check(start!=null,"new game button missing"): return
- await click(start.get_global_rect().get_center())
+ var start_point=start.get_global_rect().get_center()
+ var old_save=FileAccess.get_file_as_string(game.SAVE) if FileAccess.file_exists(game.SAVE) else ""
+ await click(start_point)
+ if not game.playing:
+  var confirm=find_button(game.content,"确认开始新旅程")
+  if not check(confirm!=null,"new game confirmation missing"): return
+  await frames(5)
+  if not check(not confirm.get_global_rect().has_point(start_point),"double click could confirm new game"): return
+  var cancel=find_button(game.content,"返回主菜单，保留原进度")
+  await click(cancel.get_global_rect().get_center())
+  if not check(not game.playing and FileAccess.get_file_as_string(game.SAVE)==old_save,"cancel changed saved progress"): return
+  print("JOURNEY_NEWGAME_CANCEL_OK preserved_save no_double_click_confirm")
+  start=find_button(game.content,"开始新的旅程")
+  await frames(5)
+  await click(start.get_global_rect().get_center())
+  confirm=find_button(game.content,"确认开始新旅程")
+  await frames(5)
+  await click(confirm.get_global_rect().get_center())
  if not check(game.playing and not game.panel_open,"new game click did not start"): return
  await frames(30)
  if not await move_to(Vector2(-56,70)): return
@@ -85,9 +102,8 @@ func run():
  if not check(game.equipped=="石斧","quickbar key did not equip"): return
  print("JOURNEY_CRAFT_EQUIP_OK")
  await tap(KEY_TAB)
- var grid
- for child in game.content.get_children():
-  if child is GridContainer: grid=child
+ var grid=game.content.find_child("BagGrid",true,false)
+ if not check(grid!=null,"inventory grid missing"): return
  scroll.ensure_control_visible(grid); await frames(4)
  var source=-1; var destination=-1
  for i in range(24):

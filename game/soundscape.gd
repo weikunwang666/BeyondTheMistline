@@ -55,10 +55,16 @@ func generate(kind: String,duration: float,looping: bool) -> AudioStreamWAV:
   stream.loop_mode=AudioStreamWAV.LOOP_FORWARD; stream.loop_begin=0; stream.loop_end=count
  return stream
 
-func update_mix(position: Vector3,weather: int,night: bool,dt: float):
+func update_mix(position: Vector3,weather: int,night: bool,dt: float,rain_amount: float=-1,wind_amount: float=-1):
  var coast=clamp((-position.x-15)/90.0,0,1)
  var forest=clamp(1.0-abs(position.x-25)/70.0,0,1)
  var levels={"wind":0.6 if weather==3 else 0.28,"sea":coast*0.9,"rain":0.75 if weather==3 else (0.4 if weather==2 else 0.0),"forest":forest*(0.3 if night else 0.8)}
+ if rain_amount>=0:
+  levels.rain=rain_amount*0.75
+  levels.forest*=1-rain_amount*0.7
+ if wind_amount>=0:
+  levels.wind=0.18+wind_amount*0.21
+  levels.sea=min(1.0,levels.sea*(1+wind_amount*0.1))
  for kind in layers:
   layers[kind].stream_paused=master<=0
   var linear=float(levels[kind])*master

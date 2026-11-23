@@ -32,3 +32,4 @@ func land():
  game.noise_time=3
  game.soundscape.play_at("stone",global_position)
  game.toast("石块落地，引开附近未发现你的敌人。")
+ game.show_caption("【声响】石块撞击地面",2.0)

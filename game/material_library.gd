@@ -11,7 +11,7 @@ func texture(id: String,kind: String) -> Texture2D:
 func pbr(id: String,tint: Color,metal=false) -> StandardMaterial3D:
  var result=StandardMaterial3D.new()
  result.albedo_texture=texture(id,"Diffuse")
- result.albedo_color=tint.lerp(Color.WHITE,0.75)
+ result.albedo_color=tint.lerp(Color.WHITE,0.35 if id=="rusty_metal_02" else 0.75)
  result.normal_enabled=true; result.normal_texture=texture(id,"nor_gl"); result.normal_scale=0.55
  result.roughness_texture=texture(id,"Rough"); result.roughness_texture_channel=BaseMaterial3D.TEXTURE_CHANNEL_RED
  result.roughness=1.0; result.metallic=0.12 if metal else 0.0; result.metallic_specular=0.25

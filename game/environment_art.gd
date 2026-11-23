@@ -15,6 +15,37 @@ static func grass() -> ArrayMesh:
  surface.generate_normals()
  return surface.commit()
 
+static func reeds() -> ArrayMesh:
+ var surface=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+ for stem in range(3):
+  var angle=stem*2.4
+  var origin=Vector3(cos(angle)*0.16,0,sin(angle)*0.16)
+  var height=1.25+stem*0.23
+  var bend=Vector3(sin(angle)*0.17,0,cos(angle)*0.17)
+  for plane in range(2):
+   var side=Vector3(cos(angle+plane*PI/2),0,sin(angle+plane*PI/2))*0.015
+   for i in range(5):
+    var t=float(i)/5; var next=float(i+1)/5
+    var a=origin+Vector3.UP*height*t+bend*t*t
+    var b=origin+Vector3.UP*height*next+bend*next*next
+    for p in [a-side,a+side,b-side,a+side,b+side,b-side]:
+     surface.set_color(Color("8b9167")); surface.add_vertex(p)
+   var base=origin+Vector3.UP*(height-0.25)+bend
+   var tip=base+Vector3.UP*0.28
+   var width=side.normalized()*0.052
+   for p in [base-width,base+width,tip-width,base+width,tip+width,tip-width]:
+    surface.set_color(Color("786149")); surface.add_vertex(p)
+  for leaf in range(2):
+   var start=origin+Vector3.UP*(0.4+leaf*0.35)
+   var direction=Vector3(cos(angle+leaf*PI),0,sin(angle+leaf*PI))
+   var middle=start+direction*0.22+Vector3.UP*0.3
+   var end=start+direction*0.52+Vector3.UP*0.16
+   var side=direction.cross(Vector3.UP)*0.035
+   for p in [start,middle-side,middle+side,middle-side,end,middle+side]:
+    surface.set_color(Color("727f57")); surface.add_vertex(p)
+ surface.generate_normals()
+ return surface.commit()
+
 static func pine(seed_value: int) -> ArrayMesh:
  var rng=RandomNumberGenerator.new(); rng.seed=seed_value
  var surface=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -40,10 +71,11 @@ static func foliage_material() -> ShaderMaterial:
  var material=ShaderMaterial.new(); var shader=Shader.new()
  shader.code="""shader_type spatial;
 render_mode cull_disabled;
+uniform float wind_scale=0.4;
 varying vec3 shade;
 void vertex(){
  vec3 world=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
- float strength=clamp(VERTEX.y*0.04,0.0,0.3);
+ float strength=clamp(VERTEX.y*0.04,0.0,0.3)*wind_scale;
  VERTEX.x+=sin(TIME*1.3+world.x*0.15+world.z*0.12)*strength;
  shade=COLOR.rgb;
 }

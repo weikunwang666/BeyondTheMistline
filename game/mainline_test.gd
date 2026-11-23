@@ -157,6 +157,8 @@ func run():
  if not check("lab" in game.repairs,"research repair failed"): return
  if not await interact_id("tower"): return
  if not check(game.repairs.size()==3,"final signal not restored"): return
+ if not check(game.panel_open and driver.find_button(game.content,"继续探索与建造")!=null,"chapter ending missing"): return
+ await button("继续探索与建造")
  await driver.tap(KEY_F5)
  await driver.tap(KEY_J)
  await driver.frames(6)

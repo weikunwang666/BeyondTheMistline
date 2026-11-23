@@ -2,6 +2,7 @@ extends RefCounted
 
 const SIZE = 24
 const TOOLS = ["石斧","木矛","弓","火把"]
+const EQUIPMENT = ["石斧","木矛","弓","火把","防雨外套","加固背心"]
 var slots = []
 var overflow = {}
 
@@ -9,7 +10,7 @@ func _init():
  for i in range(SIZE): slots.append({})
 
 func limit(item: String) -> int:
- return 1 if item in TOOLS else 20
+ return 1 if item in EQUIPMENT else 20
 
 func totals() -> Dictionary:
  var result = {}

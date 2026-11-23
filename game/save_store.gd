@@ -39,9 +39,16 @@ func valid(data) -> bool:
  if not counts(data.get("quests",{})): return false
  for key in ["pump_stock","pump_cooldown"]:
   if data.has(key) and (not number(data[key]) or data[key]<0): return false
+ if data.has("survivors"):
+  if not data.survivors is Array or data.survivors.size()>8: return false
+  for npc in data.survivors:
+   if not npc is Dictionary or not vector(npc.get("position")): return false
+ if data.has("climate") and not counts(data.climate): return false
+ if data.has("resource_hits") and not counts(data.resource_hits): return false
+ if data.has("weather_time") and (not number(data.weather_time) or data.weather_time<0 or data.weather_time>100): return false
  var job=data.get("craft_job",{})
  if not job.is_empty():
-  if not job.get("item") in ["石斧","木矛","绷带","火把","绳索","箭","弓","滤芯","净水","烤肉","工具包","电池"]: return false
+  if not job.get("item") in ["防雨外套","加固背心","石斧","木矛","绷带","火把","绳索","箭","弓","滤芯","净水","烤肉","工具包","电池"]: return false
   if not number(job.get("left")) or job.left<0 or not counts(job.get("cost")): return false
  for key in ["drops","enemies","story_read","map_markers"]:
   if data.has(key) and not data[key] is Array: return false
@@ -60,13 +67,14 @@ func valid(data) -> bool:
   for item in data.quickbar:
    if not item is String: return false
  if data.has("equipped") and not data.equipped is String: return false
+ if data.has("outfit") and (not data.outfit is String or not data.outfit in ["","防雨外套","加固背心"]): return false
  if data.has("bag_slots"):
   if not data.bag_slots is Array or data.bag_slots.size()!=24: return false
   for slot in data.bag_slots:
    if not slot is Dictionary: return false
    if not slot.is_empty() and (not slot.get("item") is String or not number(slot.get("count")) or slot.count<=0): return false
    if not slot.is_empty():
-    var cap=1 if slot.item in ["石斧","木矛","弓","火把"] else 20
+    var cap=1 if slot.item in ["石斧","木矛","弓","火把","防雨外套","加固背心"] else 20
     if slot.count>cap: return false
  return true
 

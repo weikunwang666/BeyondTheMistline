@@ -1,6 +1,6 @@
 # 从源码运行和构建
 
-当前版本为0.17早期可玩原型，使用固定的Godot 4.5.2 stable、Windows x64、Compatibility渲染。完整验收状态见 KNOWN_ISSUES.md 与 TEST_REPORT.md。
+当前本地版本为0.18早期可玩原型，GitHub暂保留0.17。使用固定的Godot 4.5.2 stable、Windows x64、Compatibility渲染。完整验收状态见 KNOWN_ISSUES.md 与 TEST_REPORT.md。
 
 直接体验请下载本仓库GitHub Releases中的Windows ZIP，解压后运行BeyondTheMistline.exe，保留同目录PCK文件。
 
@@ -27,7 +27,9 @@ New-Item -ItemType Directory -Force build | Out-Null
 ./tools/build.ps1
 ./tools/test-ai.ps1 -Executable "$PWD/build/BeyondTheMistline.exe"
 ./tools/test-journey.ps1 -Executable "$PWD/build/BeyondTheMistline.exe"
-./tools/package.ps1 -Version 0.17
+./tools/test-gear.ps1 -Executable "$PWD/build/BeyondTheMistline.exe"
+./tools/test-npc.ps1 -Executable "$PWD/build/BeyondTheMistline.exe"
+./tools/package.ps1 -Version 0.18
 ```
 
 package.ps1只保留当前版本的发布目录和ZIP，删除仓库根目录下按同一命名规则生成的旧版发行文件。源码、工具、视频和存档不在其删除范围内。

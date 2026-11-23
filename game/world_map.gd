@@ -25,10 +25,16 @@ func _draw():
  for id in game.quests.states:
   if game.quests.states[id]!=1: continue
   var target=game.quests.DEFINITIONS[id].target
-  if id=="aid" and game.inv.get("急救箱",0)>0: target=Vector2(-30,12)
+  if id=="aid" and game.inv.get("急救箱",0)>0 and not game.survivors.is_empty():
+   target=Vector2(game.survivors[0].position.x,game.survivors[0].position.z)
   var p=point(target)
   draw_arc(p,10,0,TAU,16,Color("8cdce3"),2)
   draw_string(font,p+Vector2(12,14),game.quests.DEFINITIONS[id].title,HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color("8cdce3"))
+ if "废弃渔村" in game.discovered and not game.survivors.is_empty():
+  var npc=game.survivors[0]
+  var location=point(Vector2(npc.position.x,npc.position.z))
+  draw_circle(location,4,Color("b7d49d"))
+  draw_string(font,location+Vector2(7,-10),"伊莱",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color("b7d49d"))
  for s in game.structures:
   var p=point(Vector2(s.pos[0],s.pos[2]))
   draw_rect(Rect2(p-Vector2.ONE*3,Vector2.ONE*6),Color("9dc9ad"))

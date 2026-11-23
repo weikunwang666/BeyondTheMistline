@@ -20,6 +20,7 @@ func cell(p: Vector3) -> Vector2i:
 func scan(game,amount=900):
  var exclude=[game.player.get_rid(),game.terrain_body]
  for e in game.enemies: exclude.append(e.node.get_rid())
+ for npc in game.survivors: exclude.append(npc.get_rid())
  var shape=BoxShape3D.new(); shape.size=Vector3(2.6,1.5,2.6)
  var query=PhysicsShapeQueryParameters3D.new()
  query.shape=shape; query.exclude=exclude
@@ -37,12 +38,14 @@ func invalidate():
 
 func nearest_open(id: Vector2i) -> Vector2i:
  if not grid.is_point_solid(id): return id
- for radius in range(1,5):
-  for x in range(-radius,radius+1):
-   for y in range(-radius,radius+1):
-    var p=id+Vector2i(x,y)
-    if grid.is_in_boundsv(p) and not grid.is_point_solid(p): return p
- return id
+ var best=id; var distance=INF
+ for x in range(-4,5):
+  for y in range(-4,5):
+   var p=id+Vector2i(x,y)
+   if not grid.is_in_boundsv(p) or grid.is_point_solid(p): continue
+   var d=Vector2(x,y).length_squared()
+   if d<distance: distance=d; best=p
+ return best
 
 func path(from: Vector3,to: Vector3) -> Array:
  if not ready: return []
